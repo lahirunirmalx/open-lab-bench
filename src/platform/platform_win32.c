@@ -22,6 +22,27 @@ uint64_t pl_now_ms(void) {
     return (uint64_t)GetTickCount64();
 }
 
+const char *pl_find_monospace_font(void) {
+    /* Probe %WINDIR%/Fonts/<file> for the three monospace fonts that ship
+     * with every modern Windows install. Fall back to the literal
+     * C:/Windows/Fonts/... path if WINDIR isn't set for some reason. */
+    static char chosen[MAX_PATH];
+    const char *windir = getenv("WINDIR");
+    if (!windir) windir = "C:\\Windows";
+    static const char *const names[] = {
+        "Fonts\\consola.ttf",      /* Consolas — preinstalled, monospace */
+        "Fonts\\cour.ttf",         /* Courier New */
+        "Fonts\\lucon.ttf",        /* Lucida Console */
+        NULL,
+    };
+    for (int i = 0; names[i]; i++) {
+        snprintf(chosen, sizeof(chosen), "%s\\%s", windir, names[i]);
+        FILE *f = fopen(chosen, "rb");
+        if (f) { fclose(f); return chosen; }
+    }
+    return NULL;
+}
+
 bool pl_self_exe(char *out, size_t outlen) {
     if (!out || outlen == 0) return false;
     WCHAR wbuf[MAX_PATH];

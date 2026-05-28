@@ -8,6 +8,7 @@
 
 #include "full_common.h"
 
+#include "platform/platform.h"
 #include "vfd_dotmatrix.h"
 
 #include <math.h>
@@ -847,20 +848,11 @@ void full_handle_text(full_ctx_t *c, const char *text) {
 /* ---- lifecycle ---- */
 
 bool full_open_fonts(full_ctx_t *c) {
-    static const char *paths[] = {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-        "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-        "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
-        "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf",
-        NULL
-    };
-    const char *path = NULL;
-    for (int i = 0; paths[i]; i++) {
-        FILE *f = fopen(paths[i], "r");
-        if (f) { fclose(f); path = paths[i]; break; }
+    const char *path = pl_find_monospace_font();
+    if (!path) {
+        fprintf(stderr, "full_open_fonts: no monospace TTF available on this system\n");
+        return false;
     }
-    if (!path) return false;
 
     c->font_title     = TTF_OpenFont(path, 20);
     c->font_large     = TTF_OpenFont(path, 18);

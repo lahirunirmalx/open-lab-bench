@@ -23,6 +23,26 @@ uint64_t pl_now_ms(void) {
     return (uint64_t)tv.tv_sec * 1000u + tv.tv_usec / 1000u;
 }
 
+const char *pl_find_monospace_font(void) {
+    static const char *const candidates[] = {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+        "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+        "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+        "/usr/share/fonts/liberation/LiberationMono-Regular.ttf",
+        "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf",
+        "/Library/Fonts/Menlo.ttc",                 /* macOS */
+        "/System/Library/Fonts/Menlo.ttc",
+        "/System/Library/Fonts/Courier New.ttf",
+        NULL,
+    };
+    for (int i = 0; candidates[i]; i++) {
+        FILE *f = fopen(candidates[i], "r");
+        if (f) { fclose(f); return candidates[i]; }
+    }
+    return NULL;
+}
+
 bool pl_self_exe(char *out, size_t outlen) {
     if (!out || outlen == 0) return false;
     ssize_t n = readlink("/proc/self/exe", out, outlen - 1);

@@ -85,22 +85,34 @@ jobs:
       - name: Smoke test (--list)
         run: ./psu_app.exe --list
 
-      - name: Collect SDL2 runtime DLLs
+      - name: Collect SDL2 runtime DLLs (auto-discover via ldd)
         run: |
           mkdir -p dist
           cp psu_app.exe psu_probe.exe dist/
-          # SDL2 + SDL2_ttf + their transitive deps must travel with the .exe
-          # for it to run outside MSYS2's shell.
-          for dll in SDL2.dll SDL2_ttf.dll \
-                     libfreetype-6.dll libpng16-16.dll libbz2-1.dll zlib1.dll \
-                     libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll \
-                     libbrotlidec.dll libbrotlicommon.dll libharfbuzz-0.dll \
-                     libglib-2.0-0.dll libintl-8.dll libpcre2-8-0.dll \
-                     libgraphite2.dll libiconv-2.dll; do
-            if [ -f "/mingw64/bin/$dll" ]; then
-              cp "/mingw64/bin/$dll" dist/
-            fi
-          done
+          # Walk every DLL ldd reports for both exes and copy anything that
+          # lives under /mingw64. This guarantees the bundle has every
+          # transitive dep regardless of how SDL2/SDL2_ttf are stitched
+          # together in the current MSYS2 toolchain.
+          set -eu
+          collect() {
+            local exe="$1"
+            ldd "$exe" | awk '/=>/ {print $3}' | while read -r dll; do
+              # ldd on MSYS2 emits Unix paths; system32 DLLs show as
+              # /c/Windows/... and should NOT be copied.
+              case "$dll" in
+                /mingw64/*|/usr/*) cp -u "$dll" dist/ ;;
+              esac
+            done
+          }
+          collect psu_app.exe
+          collect psu_probe.exe
+          # Bundle a TTF font so the binary doesn't depend on the user
+          # having Consolas / Courier New installed at C:\Windows\Fonts.
+          # (pl_find_monospace_font also probes C:\Windows\Fonts on Win32.)
+          if [ -f /mingw64/share/fonts/TTF/DejaVuSansMono.ttf ]; then
+            cp /mingw64/share/fonts/TTF/DejaVuSansMono.ttf dist/
+          fi
+          echo "--- dist contents ---"
           ls -la dist/
 
       - name: Upload artifacts

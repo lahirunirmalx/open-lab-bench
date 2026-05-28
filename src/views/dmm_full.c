@@ -11,6 +11,7 @@
 
 #include "views.h"
 #include "vfd_dotmatrix.h"
+#include "platform/platform.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -547,18 +548,11 @@ static void handle_click(app_t *a, int mx, int my) {
 /* ---- lifecycle ---- */
 
 static bool open_fonts(app_t *a) {
-    const char *paths[] = {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-        "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-        NULL,
-    };
-    const char *path = NULL;
-    for (int i = 0; paths[i]; i++) {
-        FILE *f = fopen(paths[i], "r");
-        if (f) { fclose(f); path = paths[i]; break; }
+    const char *path = pl_find_monospace_font();
+    if (!path) {
+        fprintf(stderr, "dmm_full: no monospace TTF available on this system\n");
+        return false;
     }
-    if (!path) return false;
     a->font_title  = TTF_OpenFont(path, 20);
     a->font_label  = TTF_OpenFont(path, 12);
     a->font_medium = TTF_OpenFont(path, 14);

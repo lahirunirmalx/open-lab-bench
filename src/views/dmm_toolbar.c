@@ -12,6 +12,7 @@
 
 #include "views.h"
 #include "vfd_dotmatrix.h"
+#include "platform/platform.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -229,18 +230,11 @@ static void render(app_t *a) {
 }
 
 static bool open_fonts(app_t *a) {
-    const char *paths[] = {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-        "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-        NULL,
-    };
-    const char *path = NULL;
-    for (int i = 0; paths[i]; i++) {
-        FILE *f = fopen(paths[i], "r");
-        if (f) { fclose(f); path = paths[i]; break; }
+    const char *path = pl_find_monospace_font();
+    if (!path) {
+        fprintf(stderr, "dmm_toolbar: no monospace TTF available on this system\n");
+        return false;
     }
-    if (!path) return false;
     a->font_label = TTF_OpenFont(path, 12);
     a->font_num   = TTF_OpenFont(path, 30);
     a->font_mode  = TTF_OpenFont(path, 18);

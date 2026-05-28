@@ -36,6 +36,18 @@ uint64_t pl_now_ms(void);
 bool pl_self_exe(char *out, size_t outlen);
 
 /**
+ * Resolve a usable monospace TTF font path for the current OS. Returns
+ * a pointer to a static string (valid for the program's lifetime), or
+ * NULL if no candidate font exists.
+ *
+ * - POSIX: probes DejaVu Sans Mono / Liberation Mono / Ubuntu Mono in
+ *   the standard /usr/share/fonts subtrees.
+ * - Win32: probes C:\Windows\Fonts for Consolas / Courier New /
+ *   Lucida Console — all pre-installed on Windows 7+.
+ */
+const char *pl_find_monospace_font(void);
+
+/**
  * Spawn a detached process: `exe` with `argv` (NULL-terminated).
  * `argv[0]` should typically equal `exe`. Caller does not wait().
  *

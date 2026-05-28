@@ -631,18 +631,11 @@ static void handle_text(launcher_t *L, const char *t) {
 /* ---- setup ---- */
 
 static bool open_fonts(launcher_t *L) {
-    const char *paths[] = {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-        "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-        NULL,
-    };
-    const char *path = NULL;
-    for (int i = 0; paths[i]; i++) {
-        FILE *f = fopen(paths[i], "r");
-        if (f) { fclose(f); path = paths[i]; break; }
+    const char *path = pl_find_monospace_font();
+    if (!path) {
+        fprintf(stderr, "launcher: no monospace TTF available on this system\n");
+        return false;
     }
-    if (!path) return false;
     L->font_title = TTF_OpenFont(path, 14);
     L->font_label = TTF_OpenFont(path, 12);
     L->font_small = TTF_OpenFont(path, 10);
