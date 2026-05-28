@@ -50,3 +50,38 @@ const view_def_t *views_find(const char *id) {
     }
     return NULL;
 }
+
+/* ---- DMM views ---- */
+
+static const dmm_view_def_t k_dmm_views[] = {
+    {
+        .id           = "dmm-toolbar",
+        .display_name = "DMM toolbar — compact readout",
+        .description  = "Big primary reading, mode label, range / rate indicator. One row.",
+        .run          = view_dmm_toolbar_run,
+    },
+    {
+        .id           = "dmm-full",
+        .display_name = "DMM full — mode/range/rate + trace",
+        .description  = "Big VFD-style readout, mode buttons, range cycle, rate selector, recent-trace.",
+        .run          = view_dmm_full_run,
+    },
+};
+
+static const dmm_view_def_t *k_dmm_view_ptrs[] = {
+    &k_dmm_views[0], &k_dmm_views[1],
+};
+
+const dmm_view_def_t *const *dmm_views_list(size_t *count) {
+    if (count) *count = sizeof(k_dmm_view_ptrs) / sizeof(k_dmm_view_ptrs[0]);
+    return k_dmm_view_ptrs;
+}
+
+const dmm_view_def_t *dmm_views_find(const char *id) {
+    if (!id) return NULL;
+    size_t n = sizeof(k_dmm_view_ptrs) / sizeof(k_dmm_view_ptrs[0]);
+    for (size_t i = 0; i < n; i++) {
+        if (strcmp(k_dmm_view_ptrs[i]->id, id) == 0) return k_dmm_view_ptrs[i];
+    }
+    return NULL;
+}
