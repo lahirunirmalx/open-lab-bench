@@ -1,4 +1,4 @@
-# PSU Control GUI — SDL2 application
+# Open LabBench — SDL2 application
 # Build deps (Ubuntu/Debian): libsdl2-dev libsdl2-ttf-dev
 #
 # Common invocations:

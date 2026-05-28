@@ -4,7 +4,7 @@
  * Layout (sections on each side, greying driven by selected driver kind):
  *
  *   ┌──────────────────────────────────────────────────────┐
- *   │ Bench Instrument Launcher                            │
+ *   │ Open LabBench                            │
  *   ├──────────────────────────────┬───────────────────────┤
  *   │ DRIVER                       │ PORT [/dev/ttyUSB0]   │
  *   │ ── PSU ──────────────────    │                       │
@@ -264,7 +264,7 @@ static void draw_top_header(launcher_t *L) {
     fill_rect(L->r, 0, 0, WIN_W, 40);
     set_color(L->r, COL_BORDER);
     SDL_RenderDrawLine(L->r, 0, 39, WIN_W, 39);
-    draw_text(L->r, L->font_title, "Bench Instrument Launcher", 14, 10, COL_TEXT);
+    draw_text(L->r, L->font_title, "Open LabBench", 14, 10, COL_TEXT);
     draw_text(L->r, L->font_small,
               "Pick a driver, port, and view. LAUNCH opens a new window per click.",
               14, 26, COL_DIM);
@@ -689,7 +689,7 @@ int launcher_run(const char *self_exe_path) {
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) return 1;
     if (TTF_Init() < 0) { SDL_Quit(); return 1; }
-    L.win = SDL_CreateWindow("Bench Instrument Launcher",
+    L.win = SDL_CreateWindow("Open LabBench",
                              SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                              WIN_W, WIN_H, SDL_WINDOW_SHOWN);
     if (!L.win) { cleanup(&L); return 1; }

@@ -444,7 +444,7 @@ int view_toolbar_single_run(psu_driver_t *drv) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) return 1;
     if (TTF_Init() < 0) { SDL_Quit(); return 1; }
 
-    a.window = SDL_CreateWindow("PSU",
+    a.window = SDL_CreateWindow("Open LabBench — PSU",
                                 SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                 WIN_W, WIN_H_STRIP, SDL_WINDOW_SHOWN);
     if (!a.window) { cleanup(&a); return 1; }

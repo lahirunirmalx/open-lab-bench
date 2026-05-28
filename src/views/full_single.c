@@ -262,7 +262,7 @@ int view_full_single_run(psu_driver_t *drv) {
     if (TTF_Init() < 0) { SDL_Quit(); return 1; }
 
     int initial_w = single_window_width(&a);
-    a.c.window = SDL_CreateWindow("PSU Control",
+    a.c.window = SDL_CreateWindow("Open LabBench — PSU",
                                   SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                   initial_w, WIN_H, SDL_WINDOW_SHOWN);
     if (!a.c.window) { TTF_Quit(); SDL_Quit(); return 1; }

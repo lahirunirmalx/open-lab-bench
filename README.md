@@ -1,4 +1,4 @@
-# PSU Control GUI — SDL2 Application
+# Open LabBench
 
 A model-agnostic bench-instrument control app in C/SDL2. One binary, one
 launcher, **six** UI layouts (four for PSUs, two for DMMs), and a growing set

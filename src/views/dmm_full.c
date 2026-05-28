@@ -591,7 +591,7 @@ int view_dmm_full_run(dmm_driver_t *drv) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) return 1;
     if (TTF_Init() < 0) { SDL_Quit(); return 1; }
 
-    a.window = SDL_CreateWindow("DMM",
+    a.window = SDL_CreateWindow("Open LabBench — DMM",
                                 SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                 WIN_W, WIN_H, SDL_WINDOW_SHOWN);
     if (!a.window) { cleanup(&a); return 1; }
