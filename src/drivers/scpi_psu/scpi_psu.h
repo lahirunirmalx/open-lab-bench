@@ -29,4 +29,25 @@ extern const psu_driver_factory_t keysight_e3634a_factory;
 /* Keysight / Agilent / HP E3645A — single output (8V/5A or 20V/2.2A). */
 extern const psu_driver_factory_t keysight_e3645a_factory;
 
+/* Rigol DP800 family. */
+extern const psu_driver_factory_t rigol_dp832_factory;
+extern const psu_driver_factory_t rigol_dp832a_factory;
+extern const psu_driver_factory_t rigol_dp811_factory;
+extern const psu_driver_factory_t rigol_dp711_factory;
+
+/* Rohde & Schwarz HMP / NGE families. */
+extern const psu_driver_factory_t rs_hmp4040_factory;
+extern const psu_driver_factory_t rs_hmp4030_factory;
+extern const psu_driver_factory_t rs_hmp2030_factory;
+extern const psu_driver_factory_t rs_nge103b_factory;
+
+/* Keithley / Tektronix triple-channel supplies. */
+extern const psu_driver_factory_t keithley_2230g_factory;
+extern const psu_driver_factory_t keithley_2231a_factory;
+
+/* HP / Agilent legacy single-output (GPIB-friendly). */
+extern const psu_driver_factory_t hp_6632a_factory;
+extern const psu_driver_factory_t hp_6633a_factory;
+extern const psu_driver_factory_t hp_6634a_factory;
+
 #endif

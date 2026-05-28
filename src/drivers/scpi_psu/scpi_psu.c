@@ -62,6 +62,11 @@ typedef struct {
      * selection on older firmware). */
     const char *set_tracking_on;
     const char *set_tracking_off;
+
+    /* Optional NULL-terminated array of commands sent verbatim after *IDN?,
+     * before the reader's first poll. Used e.g. to enable the master output
+     * on R&S HMP (OUTP:GEN ON) so per-channel OUTP:SEL ON has any effect. */
+    const char *const *init_commands;
 } scpi_psu_profile_t;
 
 /* ---- profile table ---- */
@@ -149,6 +154,235 @@ static const scpi_psu_profile_t k_keysight_e3645a = {
     .meas_voltage_fmt   = "MEAS:VOLT?",
     .meas_current_fmt   = "MEAS:CURR?",
     .meas_power_fmt     = NULL,
+};
+
+/* ----- Rigol DP800 family -------------------------------------------------
+ * Programming guide: same scheme as Siglent SPD — channel in command, with
+ * [:SOUR<n>]:VOLT for set and :OUTP CH<n>,ON / :MEAS:VOLT? CH<n> for IO.
+ * Verified against the Rigol DP800 Programming Guide command shape. */
+
+static const scpi_psu_profile_t k_rigol_dp832 = {
+    .model_name = "Rigol DP832",
+    .n_channels = 3,
+    .v_max = {30.0f, 30.0f,  5.2f},   /* CH1 30V/3A, CH2 30V/3A, CH3 5V/3A */
+    .i_max = { 3.2f,  3.2f,  3.2f},
+    .channel_in_command = true,
+    .set_voltage_fmt    = ":SOUR%d:VOLT %.3f",
+    .set_current_fmt    = ":SOUR%d:CURR %.3f",
+    .set_output_on_fmt  = ":OUTP CH%d,ON",
+    .set_output_off_fmt = ":OUTP CH%d,OFF",
+    .meas_voltage_fmt   = ":MEAS:VOLT? CH%d",
+    .meas_current_fmt   = ":MEAS:CURR? CH%d",
+    .meas_power_fmt     = ":MEAS:POWE? CH%d",
+};
+
+/* DP832A is electrically identical from the SCPI side; we register it as a
+ * separate factory so the launcher labels match the front-panel sticker. */
+static const scpi_psu_profile_t k_rigol_dp832a = {
+    .model_name = "Rigol DP832A",
+    .n_channels = 3,
+    .v_max = {30.0f, 30.0f,  5.2f},
+    .i_max = { 3.2f,  3.2f,  3.2f},
+    .channel_in_command = true,
+    .set_voltage_fmt    = ":SOUR%d:VOLT %.4f",   /* DP832A has higher resolution */
+    .set_current_fmt    = ":SOUR%d:CURR %.4f",
+    .set_output_on_fmt  = ":OUTP CH%d,ON",
+    .set_output_off_fmt = ":OUTP CH%d,OFF",
+    .meas_voltage_fmt   = ":MEAS:VOLT? CH%d",
+    .meas_current_fmt   = ":MEAS:CURR? CH%d",
+    .meas_power_fmt     = ":MEAS:POWE? CH%d",
+};
+
+/* DP811 / DP811A — single output, 0..20 V / 0..10 A (or 0..40 V / 0..5 A
+ * in low-current range; we expose the 20V/10A nominal range). */
+static const scpi_psu_profile_t k_rigol_dp811 = {
+    .model_name = "Rigol DP811",
+    .n_channels = 1,
+    .v_max = {20.0f},
+    .i_max = {10.0f},
+    .channel_in_command = false,
+    .select_channel_fmt = NULL,           /* single channel */
+    .set_voltage_fmt    = ":VOLT %.3f",
+    .set_current_fmt    = ":CURR %.3f",
+    .set_output_on_fmt  = ":OUTP ON",
+    .set_output_off_fmt = ":OUTP OFF",
+    .meas_voltage_fmt   = ":MEAS:VOLT?",
+    .meas_current_fmt   = ":MEAS:CURR?",
+    .meas_power_fmt     = ":MEAS:POWE?",
+};
+
+static const scpi_psu_profile_t k_rigol_dp711 = {
+    .model_name = "Rigol DP711",
+    .n_channels = 1,
+    .v_max = {30.0f},
+    .i_max = { 5.0f},
+    .channel_in_command = false,
+    .select_channel_fmt = NULL,
+    .set_voltage_fmt    = ":VOLT %.3f",
+    .set_current_fmt    = ":CURR %.3f",
+    .set_output_on_fmt  = ":OUTP ON",
+    .set_output_off_fmt = ":OUTP OFF",
+    .meas_voltage_fmt   = ":MEAS:VOLT?",
+    .meas_current_fmt   = ":MEAS:CURR?",
+    .meas_power_fmt     = ":MEAS:POWE?",
+};
+
+/* ----- Rohde & Schwarz HMP / NGE families ---------------------------------
+ * Per the HMP / NGE programming manuals: INST OUTn selects the active
+ * output, then VOLT/CURR/OUTP:SEL act on it. A master output gate is
+ * controlled via OUTP:GEN — we enable it once via init_commands so the
+ * per-channel selects have effect. */
+
+static const char *const k_rs_init_general_on[] = {
+    "OUTP:GEN ON",     /* arm the master output (per-channel OUTP:SEL still gates each) */
+    NULL,
+};
+
+static const scpi_psu_profile_t k_rs_hmp4040 = {
+    .model_name = "R&S HMP4040",
+    .n_channels = 4,
+    .v_max = {32.05f, 32.05f, 32.05f, 32.05f},
+    .i_max = {10.0f,  10.0f,  10.0f,  10.0f},
+    .channel_in_command = false,
+    .select_channel_fmt = "INST OUT%d",
+    .set_voltage_fmt    = "VOLT %.3f",
+    .set_current_fmt    = "CURR %.3f",
+    .set_output_on_fmt  = "OUTP:SEL ON",
+    .set_output_off_fmt = "OUTP:SEL OFF",
+    .meas_voltage_fmt   = "MEAS:VOLT?",
+    .meas_current_fmt   = "MEAS:CURR?",
+    .meas_power_fmt     = "MEAS:POW?",
+    .init_commands      = k_rs_init_general_on,
+};
+
+static const scpi_psu_profile_t k_rs_hmp4030 = {
+    .model_name = "R&S HMP4030",
+    .n_channels = 3,
+    .v_max = {32.05f, 32.05f, 32.05f},
+    .i_max = {10.0f,  10.0f,  10.0f},
+    .channel_in_command = false,
+    .select_channel_fmt = "INST OUT%d",
+    .set_voltage_fmt    = "VOLT %.3f",
+    .set_current_fmt    = "CURR %.3f",
+    .set_output_on_fmt  = "OUTP:SEL ON",
+    .set_output_off_fmt = "OUTP:SEL OFF",
+    .meas_voltage_fmt   = "MEAS:VOLT?",
+    .meas_current_fmt   = "MEAS:CURR?",
+    .meas_power_fmt     = "MEAS:POW?",
+    .init_commands      = k_rs_init_general_on,
+};
+
+static const scpi_psu_profile_t k_rs_hmp2030 = {
+    .model_name = "R&S HMP2030",
+    .n_channels = 3,
+    .v_max = {32.0f, 32.0f, 32.0f},
+    .i_max = { 5.0f,  5.0f,  5.0f},
+    .channel_in_command = false,
+    .select_channel_fmt = "INST OUT%d",
+    .set_voltage_fmt    = "VOLT %.3f",
+    .set_current_fmt    = "CURR %.3f",
+    .set_output_on_fmt  = "OUTP:SEL ON",
+    .set_output_off_fmt = "OUTP:SEL OFF",
+    .meas_voltage_fmt   = "MEAS:VOLT?",
+    .meas_current_fmt   = "MEAS:CURR?",
+    .meas_power_fmt     = "MEAS:POW?",
+    .init_commands      = k_rs_init_general_on,
+};
+
+/* NGE100B family — same SCPI shape as HMP, just smaller. NGE103B is 3-ch
+ * 32V/3A; NGE102B is the 2-ch variant; NGE101B is single. */
+static const scpi_psu_profile_t k_rs_nge103b = {
+    .model_name = "R&S NGE103B",
+    .n_channels = 3,
+    .v_max = {32.0f, 32.0f, 32.0f},
+    .i_max = { 3.0f,  3.0f,  3.0f},
+    .channel_in_command = false,
+    .select_channel_fmt = "INST OUT%d",
+    .set_voltage_fmt    = "VOLT %.3f",
+    .set_current_fmt    = "CURR %.3f",
+    .set_output_on_fmt  = "OUTP:SEL ON",
+    .set_output_off_fmt = "OUTP:SEL OFF",
+    .meas_voltage_fmt   = "MEAS:VOLT?",
+    .meas_current_fmt   = "MEAS:CURR?",
+    .meas_power_fmt     = "MEAS:POW?",
+    .init_commands      = k_rs_init_general_on,
+};
+
+/* ----- Keithley / Tektronix 2230 series -----------------------------------
+ * 2230G / 2231A triple-channel. INST:SEL CH<n> selects, then VOLT/CURR
+ * setpoints and CHAN:OUTP enable apply to the selected channel. No
+ * MEAS:POWE? on this family — driver computes V*A. */
+
+static const scpi_psu_profile_t k_keithley_2230g = {
+    .model_name = "Keithley 2230G",
+    .n_channels = 3,
+    .v_max = {30.0f, 30.0f,  6.0f},   /* 2230G-30-1: CH1+CH2 30V/1.5A, CH3 6V/5A */
+    .i_max = { 1.5f,  1.5f,  5.0f},
+    .channel_in_command = false,
+    .select_channel_fmt = "INST:SEL CH%d",
+    .set_voltage_fmt    = "VOLT %.4f",
+    .set_current_fmt    = "CURR %.4f",
+    .set_output_on_fmt  = "CHAN:OUTP ON",
+    .set_output_off_fmt = "CHAN:OUTP OFF",
+    .meas_voltage_fmt   = "MEAS:VOLT?",
+    .meas_current_fmt   = "MEAS:CURR?",
+    .meas_power_fmt     = NULL,
+};
+
+static const scpi_psu_profile_t k_keithley_2231a = {
+    .model_name = "Keithley 2231A-30-3",
+    .n_channels = 3,
+    .v_max = {30.0f, 30.0f, 30.0f},
+    .i_max = { 3.0f,  3.0f,  3.0f},
+    .channel_in_command = false,
+    .select_channel_fmt = "INST:SEL CH%d",
+    .set_voltage_fmt    = "VOLT %.4f",
+    .set_current_fmt    = "CURR %.4f",
+    .set_output_on_fmt  = "CHAN:OUTP ON",
+    .set_output_off_fmt = "CHAN:OUTP OFF",
+    .meas_voltage_fmt   = "MEAS:VOLT?",
+    .meas_current_fmt   = "MEAS:CURR?",
+    .meas_power_fmt     = NULL,
+};
+
+/* ----- HP / Agilent 663xA — classic GPIB single-output supplies ------------
+ * Identical SCPI shape; only the V/I ranges differ. Defaults match the
+ * 6632A (20V/5A), 6633A (50V/2A), 6634A (100V/1A). Common on GPIB; reach
+ * via --port=prologix:/dev/ttyUSB0:<gpib-addr>. */
+
+#define HP_663X_COMMON                                            \
+    .channel_in_command = false,                                  \
+    .select_channel_fmt = NULL,                                   \
+    .set_voltage_fmt    = "VOLT %.3f",                            \
+    .set_current_fmt    = "CURR %.3f",                            \
+    .set_output_on_fmt  = "OUTP ON",                              \
+    .set_output_off_fmt = "OUTP OFF",                             \
+    .meas_voltage_fmt   = "MEAS:VOLT?",                           \
+    .meas_current_fmt   = "MEAS:CURR?",                           \
+    .meas_power_fmt     = NULL
+
+static const scpi_psu_profile_t k_hp_6632a = {
+    .model_name = "HP/Agilent 6632A",
+    .n_channels = 1,
+    .v_max = {20.0f},
+    .i_max = { 5.0f},
+    HP_663X_COMMON,
+};
+
+static const scpi_psu_profile_t k_hp_6633a = {
+    .model_name = "HP/Agilent 6633A",
+    .n_channels = 1,
+    .v_max = {50.0f},
+    .i_max = { 2.0f},
+    HP_663X_COMMON,
+};
+
+static const scpi_psu_profile_t k_hp_6634a = {
+    .model_name = "HP/Agilent 6634A",
+    .n_channels = 1,
+    .v_max = {100.0f},
+    .i_max = {  1.0f},
+    HP_663X_COMMON,
 };
 
 /* ---- driver state ---- */
@@ -257,6 +491,14 @@ static void *reader_main(void *arg) {
     } else {
         fprintf(stderr, "scpi-psu: *IDN? timed out — continuing anyway\n");
         s->err_count++;
+    }
+
+    /* Profile-defined one-off setup (e.g. R&S HMP "OUTP:GEN ON"). Failures
+     * are non-fatal — the instrument might already be in the right state. */
+    if (s->prof->init_commands) {
+        for (const char *const *cmd = s->prof->init_commands; *cmd; cmd++) {
+            if (!scpi_send(s->scpi, *cmd)) s->err_count++;
+        }
     }
 
     while (s->running) {
@@ -438,6 +680,23 @@ static psu_driver_t *open_keysight_e3633a(const char *p, int b) { return scpi_ps
 static psu_driver_t *open_keysight_e3634a(const char *p, int b) { return scpi_psu_open(&k_keysight_e3634a, p, b); }
 static psu_driver_t *open_keysight_e3645a(const char *p, int b) { return scpi_psu_open(&k_keysight_e3645a, p, b); }
 
+static psu_driver_t *open_rigol_dp832(const char *p, int b)     { return scpi_psu_open(&k_rigol_dp832,     p, b); }
+static psu_driver_t *open_rigol_dp832a(const char *p, int b)    { return scpi_psu_open(&k_rigol_dp832a,    p, b); }
+static psu_driver_t *open_rigol_dp811(const char *p, int b)     { return scpi_psu_open(&k_rigol_dp811,     p, b); }
+static psu_driver_t *open_rigol_dp711(const char *p, int b)     { return scpi_psu_open(&k_rigol_dp711,     p, b); }
+
+static psu_driver_t *open_rs_hmp4040(const char *p, int b)      { return scpi_psu_open(&k_rs_hmp4040,      p, b); }
+static psu_driver_t *open_rs_hmp4030(const char *p, int b)      { return scpi_psu_open(&k_rs_hmp4030,      p, b); }
+static psu_driver_t *open_rs_hmp2030(const char *p, int b)      { return scpi_psu_open(&k_rs_hmp2030,      p, b); }
+static psu_driver_t *open_rs_nge103b(const char *p, int b)      { return scpi_psu_open(&k_rs_nge103b,      p, b); }
+
+static psu_driver_t *open_keithley_2230g(const char *p, int b)  { return scpi_psu_open(&k_keithley_2230g,  p, b); }
+static psu_driver_t *open_keithley_2231a(const char *p, int b)  { return scpi_psu_open(&k_keithley_2231a,  p, b); }
+
+static psu_driver_t *open_hp_6632a(const char *p, int b)        { return scpi_psu_open(&k_hp_6632a,        p, b); }
+static psu_driver_t *open_hp_6633a(const char *p, int b)        { return scpi_psu_open(&k_hp_6633a,        p, b); }
+static psu_driver_t *open_hp_6634a(const char *p, int b)        { return scpi_psu_open(&k_hp_6634a,        p, b); }
+
 const psu_driver_factory_t siglent_spd_factory = {
     .id              = "siglent-spd",
     .display_name    = "Siglent SPD3303 (SCPI)",
@@ -481,4 +740,129 @@ const psu_driver_factory_t keysight_e3645a_factory = {
     .default_baud    = 9600,
     .n_channels_hint = 1,
     .open            = open_keysight_e3645a,
+};
+
+/* ----- Rigol DP-series factories ----------------------------------------- */
+
+const psu_driver_factory_t rigol_dp832_factory = {
+    .id              = "rigol-dp832",
+    .display_name    = "Rigol DP832 (SCPI)",
+    .description     = "Triple-output: CH1+CH2 30V/3A, CH3 5V/3A. Serial or Prologix GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 3,
+    .open            = open_rigol_dp832,
+};
+
+const psu_driver_factory_t rigol_dp832a_factory = {
+    .id              = "rigol-dp832a",
+    .display_name    = "Rigol DP832A (SCPI, higher-resolution)",
+    .description     = "Same outputs as DP832 with finer setpoint resolution. Serial or Prologix GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 3,
+    .open            = open_rigol_dp832a,
+};
+
+const psu_driver_factory_t rigol_dp811_factory = {
+    .id              = "rigol-dp811",
+    .display_name    = "Rigol DP811 (SCPI)",
+    .description     = "Single output: 20V/10A (or 40V/5A in low-current range). Serial or Prologix GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 1,
+    .open            = open_rigol_dp811,
+};
+
+const psu_driver_factory_t rigol_dp711_factory = {
+    .id              = "rigol-dp711",
+    .display_name    = "Rigol DP711 (SCPI)",
+    .description     = "Single output: 30V/5A linear. Serial or Prologix GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 1,
+    .open            = open_rigol_dp711,
+};
+
+/* ----- Rohde & Schwarz HMP / NGE factories ------------------------------- */
+
+const psu_driver_factory_t rs_hmp4040_factory = {
+    .id              = "rs-hmp4040",
+    .display_name    = "R&S HMP4040 (SCPI)",
+    .description     = "Quad output, each 32V/10A. Master output enabled at open. Serial or GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 4,
+    .open            = open_rs_hmp4040,
+};
+
+const psu_driver_factory_t rs_hmp4030_factory = {
+    .id              = "rs-hmp4030",
+    .display_name    = "R&S HMP4030 (SCPI)",
+    .description     = "Triple output, each 32V/10A. Master output enabled at open. Serial or GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 3,
+    .open            = open_rs_hmp4030,
+};
+
+const psu_driver_factory_t rs_hmp2030_factory = {
+    .id              = "rs-hmp2030",
+    .display_name    = "R&S HMP2030 (SCPI)",
+    .description     = "Triple output, each 32V/5A. Master output enabled at open. Serial or GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 3,
+    .open            = open_rs_hmp2030,
+};
+
+const psu_driver_factory_t rs_nge103b_factory = {
+    .id              = "rs-nge103b",
+    .display_name    = "R&S NGE103B (SCPI)",
+    .description     = "Triple output, each 32V/3A. Master output enabled at open. Serial or GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 3,
+    .open            = open_rs_nge103b,
+};
+
+/* ----- Keithley / Tektronix factories ----------------------------------- */
+
+const psu_driver_factory_t keithley_2230g_factory = {
+    .id              = "keithley-2230g",
+    .display_name    = "Keithley 2230G (SCPI)",
+    .description     = "Triple output: 30V/1.5A x2 + 6V/5A. Serial or Prologix GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 3,
+    .open            = open_keithley_2230g,
+};
+
+const psu_driver_factory_t keithley_2231a_factory = {
+    .id              = "keithley-2231a",
+    .display_name    = "Keithley 2231A-30-3 (SCPI)",
+    .description     = "Triple output, each 30V/3A. Serial or Prologix GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 3,
+    .open            = open_keithley_2231a,
+};
+
+/* ----- HP / Agilent 663xA factories (classic single-output) -------------- */
+
+const psu_driver_factory_t hp_6632a_factory = {
+    .id              = "hp-6632a",
+    .display_name    = "HP/Agilent 6632A (SCPI)",
+    .description     = "Single output, 20V/5A. Typically on GPIB — use prologix:<dev>:<addr>.",
+    .default_baud    = 9600,
+    .n_channels_hint = 1,
+    .open            = open_hp_6632a,
+};
+
+const psu_driver_factory_t hp_6633a_factory = {
+    .id              = "hp-6633a",
+    .display_name    = "HP/Agilent 6633A (SCPI)",
+    .description     = "Single output, 50V/2A. Typically on GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 1,
+    .open            = open_hp_6633a,
+};
+
+const psu_driver_factory_t hp_6634a_factory = {
+    .id              = "hp-6634a",
+    .display_name    = "HP/Agilent 6634A (SCPI)",
+    .description     = "Single output, 100V/1A. Typically on GPIB.",
+    .default_baud    = 9600,
+    .n_channels_hint = 1,
+    .open            = open_hp_6634a,
 };
