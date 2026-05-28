@@ -1,45 +1,74 @@
 # Open LabBench — SDL2 application
-# Build deps (Ubuntu/Debian): libsdl2-dev libsdl2-ttf-dev
+#
+# Build deps:
+#   Ubuntu/Debian:  libsdl2-dev libsdl2-ttf-dev
+#   Fedora:         SDL2-devel SDL2_ttf-devel
+#   Arch:           sdl2 sdl2_ttf
+#   Windows (MSYS2 MINGW64):
+#                   pacman -S mingw-w64-x86_64-{gcc,SDL2,SDL2_ttf,pkg-config}
 #
 # Common invocations:
-#   make                       # build psu_app, psu_probe, and legacy GUIs
+#   make                       # build psu_app, psu_probe, and legacy GUIs (POSIX only)
 #   make app                   # only the new single-binary app
 #   make probe                 # only the CLI sanity tool
-#   make legacy                # only the four legacy GUIs
-#   make run                   # build + run psu_app against the demo driver
+#   make legacy                # only the four legacy GUIs (POSIX only)
+#   make run                   # build + run psu_app
 #   make run ARGS="--driver=modbus-bridge --view=toolbar-single --port=/dev/ttyUSB0"
 #   make clean                 # remove build/ and all binaries
-#   make install               # install psu_app to $(PREFIX)/bin  (default /usr/local)
-#   sudo make install PREFIX=/usr
+#   make install               # install psu_app to $(PREFIX)/bin  (POSIX only)
 
 CC      ?= gcc
 PREFIX  ?= /usr/local
 BINDIR  ?= $(PREFIX)/bin
 BUILD   ?= build
 
-# Prefer pkg-config so the build picks up the right include/lib paths on any
-# distro. Fall back to plain -l flags if pkg-config can't see SDL2.
+# ----- platform detection -------------------------------------------------
+
+# OS=Windows_NT is set by cmd.exe / MSYS2's make. uname -s also identifies the host.
+ifeq ($(OS),Windows_NT)
+    PLATFORM      := windows
+    EXE_SUFFIX    := .exe
+    PLATFORM_SRC  := src/platform/platform_win32.c
+    SERIAL_SRC    := src/transport/serial_port_win32.c
+    PLATFORM_LIBS := -lwinmm -lws2_32 -lkernel32 -lgdi32 -limm32 -lole32 -loleaut32 -luuid -lsetupapi -lversion
+    BUILD_LEGACY  := 0
+else
+    UNAME_S := $(shell uname -s)
+    PLATFORM      := posix
+    EXE_SUFFIX    :=
+    PLATFORM_SRC  := src/platform/platform_posix.c
+    SERIAL_SRC    := src/transport/serial_port.c
+    PLATFORM_LIBS :=
+    BUILD_LEGACY  := 1
+endif
+
+# ----- SDL2 detection -----------------------------------------------------
+
+# pkg-config works on Linux + macOS + Windows-under-MSYS2; the -l fallback
+# handles barebones systems without pkg-config.
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2 SDL2_ttf 2>/dev/null)
 SDL_LIBS   := $(shell pkg-config --libs   sdl2 SDL2_ttf 2>/dev/null)
 ifeq ($(strip $(SDL_LIBS)),)
 SDL_LIBS := -lSDL2 -lSDL2_ttf
 endif
 
-# Header-search paths for the new tree.
-#   include/        — public driver interface (psu_driver.h)
-#   src/            — "drivers/foo.h", "views/foo.h" style includes
-#   src/transport/  — serial_port.h, shared by drivers
+# ----- compile / link flags ----------------------------------------------
+
 NEW_INCLUDES := -Iinclude -Isrc -Isrc/transport
 
 CFLAGS  ?= -O2
-CFLAGS  += -Wall -Wextra -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -pthread $(SDL_CFLAGS)
-LDFLAGS += -pthread
-LDLIBS  += $(SDL_LIBS) -lm
+CFLAGS  += -Wall -Wextra -std=c99 -pthread $(SDL_CFLAGS)
+ifeq ($(PLATFORM),posix)
+CFLAGS  += -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
+endif
 
-# ----- New tree -----------------------------------------------------------
+LDFLAGS += -pthread
+LDLIBS  += $(SDL_LIBS) $(PLATFORM_LIBS) -lm
+
+# ----- source lists -------------------------------------------------------
 
 TRANSPORT_SRCS := \
-    src/transport/serial_port.c \
+    $(SERIAL_SRC) \
     src/transport/scpi.c \
     src/transport/scpi_serial.c \
     src/transport/scpi_prologix.c
@@ -67,25 +96,33 @@ VIEW_SRCS := \
     src/views/dmm_toolbar.c \
     src/views/dmm_full.c
 
-# ----- Binaries -----------------------------------------------------------
+# Legacy binaries link directly against POSIX termios; skipped on Windows.
 
-APP_BINS    := psu_app
-TOOL_BINS   := psu_probe
+# ----- binaries -----------------------------------------------------------
+
+APP_BINS    := psu_app$(EXE_SUFFIX)
+TOOL_BINS   := psu_probe$(EXE_SUFFIX)
+ifeq ($(BUILD_LEGACY),1)
 LEGACY_BINS := psu_gui psu_gui_single psu_gui_toolbar psu_gui_toolbar_single
-BINS        := $(APP_BINS) $(TOOL_BINS) $(LEGACY_BINS)
+else
+LEGACY_BINS :=
+endif
+BINS := $(APP_BINS) $(TOOL_BINS) $(LEGACY_BINS)
 
 # Per-binary source lists.
-psu_app_SRCS   := src/app/psu_app.c src/app/launcher.c \
-                  $(TRANSPORT_SRCS) $(DRIVER_SRCS) $(VIEW_SRCS)
-psu_probe_SRCS := src/app/psu_probe.c $(TRANSPORT_SRCS) $(DRIVER_SRCS)
+psu_app$(EXE_SUFFIX)_SRCS := \
+    src/app/psu_app.c src/app/launcher.c \
+    $(PLATFORM_SRC) $(TRANSPORT_SRCS) $(DRIVER_SRCS) $(VIEW_SRCS)
 
-# psu_probe doesn't need SDL/TTF.
-psu_probe_LDLIBS  := -pthread -lm
-psu_probe_CPPFLAGS := $(NEW_INCLUDES)
-psu_app_CPPFLAGS   := $(NEW_INCLUDES)
+psu_probe$(EXE_SUFFIX)_SRCS := \
+    src/app/psu_probe.c $(PLATFORM_SRC) $(TRANSPORT_SRCS) $(DRIVER_SRCS)
 
-# Legacy four GUIs — self-contained in legacy/ with their own copies of
-# psu_protocol/serial_port. They get removed as views are ported in Phase 3.
+# psu_probe doesn't link SDL/TTF.
+psu_probe$(EXE_SUFFIX)_LDLIBS  := -pthread $(PLATFORM_LIBS) -lm
+psu_probe$(EXE_SUFFIX)_CPPFLAGS := $(NEW_INCLUDES)
+psu_app$(EXE_SUFFIX)_CPPFLAGS   := $(NEW_INCLUDES)
+
+# Legacy four GUIs (POSIX only).
 LEGACY_INC := -Ilegacy
 
 psu_gui_SRCS                := legacy/main.c                legacy/serial_port.c legacy/psu_protocol.c
@@ -98,9 +135,9 @@ psu_gui_single_CPPFLAGS         := $(LEGACY_INC)
 psu_gui_toolbar_CPPFLAGS        := $(LEGACY_INC)
 psu_gui_toolbar_single_CPPFLAGS := $(LEGACY_INC)
 
-# ----- Build rules --------------------------------------------------------
+# ----- build rules --------------------------------------------------------
 
-.PHONY: all app probe legacy clean install uninstall run
+.PHONY: all app probe legacy clean install uninstall run platform
 .DEFAULT_GOAL := all
 
 all:    $(BINS)
@@ -108,8 +145,14 @@ app:    $(APP_BINS)
 probe:  $(TOOL_BINS)
 legacy: $(LEGACY_BINS)
 
-# Each binary gets its own $(BUILD)/<bin>/ subtree mirroring source paths, so
-# objects for the same .c compiled with different flags don't collide.
+platform:
+	@echo "Building for: $(PLATFORM)"
+	@echo "  exe suffix:   '$(EXE_SUFFIX)'"
+	@echo "  platform src: $(PLATFORM_SRC)"
+	@echo "  serial src:   $(SERIAL_SRC)"
+	@echo "  extra libs:   $(PLATFORM_LIBS)"
+	@echo "  build legacy: $(BUILD_LEGACY)"
+
 define BUILD_template
 $(1)_OBJS := $$(patsubst %.c,$(BUILD)/$(1)/%.o,$$($(1)_SRCS))
 
@@ -122,8 +165,8 @@ $(1): $$($(1)_OBJS)
 endef
 $(foreach bin,$(BINS),$(eval $(call BUILD_template,$(bin))))
 
-run: psu_app
-	./psu_app $(if $(ARGS),$(ARGS),--driver=demo --view=toolbar-single --port=-)
+run: $(APP_BINS)
+	./$(APP_BINS) $(if $(ARGS),$(ARGS),--driver=demo --view=toolbar-single --port=-)
 
 install: $(APP_BINS)
 	install -d $(DESTDIR)$(BINDIR)
@@ -133,4 +176,4 @@ uninstall:
 	cd $(DESTDIR)$(BINDIR) && rm -f $(APP_BINS)
 
 clean:
-	rm -rf $(BUILD) $(BINS)
+	rm -rf $(BUILD) $(BINS) psu_app.exe psu_probe.exe
