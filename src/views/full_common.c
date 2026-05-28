@@ -8,6 +8,8 @@
 
 #include "full_common.h"
 
+#include "vfd_dotmatrix.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -171,103 +173,17 @@ void full_draw_button(full_ctx_t *c, int x, int y, int w, int h, const char *tex
     full_add_button(c, x, y, w, h, id);
 }
 
-/* ---- VFD dot matrix font ---- */
-
-static const uint8_t DOT_MATRIX_FONT[12][5] = {
-    {0x3E, 0x51, 0x49, 0x45, 0x3E},
-    {0x00, 0x42, 0x7F, 0x40, 0x00},
-    {0x42, 0x61, 0x51, 0x49, 0x46},
-    {0x21, 0x41, 0x45, 0x4B, 0x31},
-    {0x18, 0x14, 0x12, 0x7F, 0x10},
-    {0x27, 0x45, 0x45, 0x45, 0x39},
-    {0x3C, 0x4A, 0x49, 0x49, 0x30},
-    {0x01, 0x71, 0x09, 0x05, 0x03},
-    {0x36, 0x49, 0x49, 0x49, 0x36},
-    {0x06, 0x49, 0x49, 0x29, 0x1E},
-    {0x00, 0x60, 0x60, 0x00, 0x00},
-    {0x08, 0x08, 0x08, 0x08, 0x08},
-};
-
-static void draw_vfd_dot(SDL_Renderer *r, int cx, int cy, int radius,
-                         full_color_t col, bool on) {
-    if (!on) {
-        full_color_t dim = {(Uint8)(col.r / 15), (Uint8)(col.g / 15),
-                            (Uint8)(col.b / 15), 80};
-        full_set_color(r, dim);
-        for (int dy = -radius + 1; dy < radius; dy++)
-            for (int dx = -radius + 1; dx < radius; dx++)
-                if (dx * dx + dy * dy < radius * radius)
-                    SDL_RenderDrawPoint(r, cx + dx, cy + dy);
-        return;
-    }
-
-    int glow_r = radius + 2;
-    full_color_t glow1 = {(Uint8)(col.r / 6), (Uint8)(col.g / 6), (Uint8)(col.b / 6), 60};
-    full_set_color(r, glow1);
-    for (int dy = -glow_r; dy <= glow_r; dy++) {
-        for (int dx = -glow_r; dx <= glow_r; dx++) {
-            int d2 = dx * dx + dy * dy;
-            if (d2 <= glow_r * glow_r && d2 > radius * radius)
-                SDL_RenderDrawPoint(r, cx + dx, cy + dy);
-        }
-    }
-
-    full_set_color(r, col);
-    for (int dy = -radius; dy <= radius; dy++)
-        for (int dx = -radius; dx <= radius; dx++)
-            if (dx * dx + dy * dy <= radius * radius)
-                SDL_RenderDrawPoint(r, cx + dx, cy + dy);
-
-    full_color_t hi = {(Uint8)(col.r + (255 - col.r) / 2),
-                       (Uint8)(col.g + (255 - col.g) / 2),
-                       (Uint8)(col.b + (255 - col.b) / 2), 255};
-    full_set_color(r, hi);
-    int hi_r = radius / 2;
-    if (hi_r < 1) hi_r = 1;
-    for (int dy = -hi_r; dy <= hi_r; dy++)
-        for (int dx = -hi_r; dx <= hi_r; dx++)
-            if (dx * dx + dy * dy <= hi_r * hi_r)
-                SDL_RenderDrawPoint(r, cx + dx - 1, cy + dy - 1);
-}
-
-static void draw_vfd_char(SDL_Renderer *r, int x, int y, int ch_idx,
-                          int dot_size, int dot_gap,
-                          full_color_t on_col, full_color_t off_col,
-                          bool show_off) {
-    if (ch_idx < 0 || ch_idx > 11) return;
-    const uint8_t *pattern = DOT_MATRIX_FONT[ch_idx];
-    int dot_spacing = dot_size * 2 + dot_gap;
-    for (int col = 0; col < 5; col++) {
-        uint8_t coldata = pattern[col];
-        for (int row = 0; row < 7; row++) {
-            bool on = (coldata >> row) & 1;
-            int px = x + col * dot_spacing + dot_size;
-            int py = y + row * dot_spacing + dot_size;
-            if (on)            draw_vfd_dot(r, px, py, dot_size, on_col,  true);
-            else if (show_off) draw_vfd_dot(r, px, py, dot_size, off_col, false);
-        }
-    }
+/* Adapter: full_color_t and vfd_color_t are identical-shaped structs, but the
+ * type system separates them — keep one helper that converts. */
+static vfd_color_t to_vfd_color(full_color_t c) {
+    return (vfd_color_t){ c.r, c.g, c.b, c.a };
 }
 
 static int draw_vfd_number(SDL_Renderer *r, int x, int y, const char *str,
                            int dot_size, int dot_gap, int char_gap,
                            full_color_t on_col, full_color_t off_col, bool show_off) {
-    int cx = x;
-    int char_w = 5 * (dot_size * 2 + dot_gap);
-    for (const char *p = str; *p; p++) {
-        int ch_idx = -1;
-        if      (*p >= '0' && *p <= '9') ch_idx = *p - '0';
-        else if (*p == '.')              ch_idx = 10;
-        else if (*p == '-')              ch_idx = 11;
-        else if (*p == ' ')              { cx += char_w + char_gap; continue; }
-
-        if (ch_idx >= 0) {
-            draw_vfd_char(r, cx, y, ch_idx, dot_size, dot_gap, on_col, off_col, show_off);
-            cx += (ch_idx == 10) ? ((dot_size * 2 + dot_gap) * 2 + char_gap)
-                                 : (char_w + char_gap);
-        }
-    }
-    return cx - x;
+    return vfd_draw_number(r, x, y, str, dot_size, dot_gap, char_gap,
+                           to_vfd_color(on_col), to_vfd_color(off_col), show_off);
 }
 
 /* ---- visualizations ---- */
