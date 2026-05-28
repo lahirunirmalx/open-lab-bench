@@ -137,11 +137,13 @@ static void render(app_t *a) {
     int mw = draw_text(r, a->font_mode, mode_lbl, x, y, COL_MODE);
     x += mw + 16;
 
-    /* Value + unit — dot-matrix VFD. */
+    /* Value + unit — dot-matrix VFD, matched to PSU full GUI dimensions
+     * (dot_size=2, dot_gap=1, char_gap=5) so DMM and PSU readouts look the
+     * same size when windowed side by side. */
     {
         int dot_size = 2;
         int dot_gap  = 1;
-        int char_gap = 4;
+        int char_gap = 5;
         int char_h   = vfd_char_height(dot_size, dot_gap);
         int vfd_y    = sy + (sh - char_h) / 2;
         vfd_color_t vfd_off = { 0, 20, 12, 255 };
@@ -152,13 +154,21 @@ static void render(app_t *a) {
                             dot_size, dot_gap, char_gap, vfd_err, vfd_off, true);
         } else if (!a->reading.valid) {
             vfd_color_t vfd_dim = { COL_DIM.r, COL_DIM.g, COL_DIM.b, COL_DIM.a };
-            vfd_draw_number(r, x, vfd_y, " ----- ",
+            vfd_draw_number(r, x, vfd_y, " --------- ",
                             dot_size, dot_gap, char_gap, vfd_dim, vfd_off, true);
         } else {
             const char *prefix = "";
             float scaled = engineering_scale(a->reading.value, &prefix);
+
+            /* 8½-digit display: 9 significant digits total. Pick the decimal
+             * count from the scaled magnitude so the field always holds 9
+             * digits (XXX.XXXXXX, XX.XXXXXXX, or X.XXXXXXXX). */
+            float abs_v = fabsf(scaled);
+            int decimals = (abs_v >= 100.0f) ? 6
+                         : (abs_v >= 10.0f)  ? 7
+                                             : 8;
             char vbuf[24];
-            snprintf(vbuf, sizeof(vbuf), "%9.5f", scaled);
+            snprintf(vbuf, sizeof(vbuf), "%.*f", decimals, scaled);
 
             vfd_color_t vfd_on = { COL_VAL.r, COL_VAL.g, COL_VAL.b, COL_VAL.a };
             int vw = vfd_draw_number(r, x, vfd_y, vbuf,

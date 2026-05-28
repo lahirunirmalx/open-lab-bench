@@ -42,7 +42,6 @@ static const Color COL_LABEL    = {160, 160, 168, 255};
 static const Color COL_ACCENT   = {0, 180, 220, 255};
 static const Color COL_OK       = {50, 205, 100, 255};
 static const Color COL_ERR      = {220, 60, 60, 255};
-static const Color COL_MODE     = {255, 200, 80, 255};
 static const Color COL_VAL      = {0, 255, 140, 255};
 static const Color COL_UNIT     = {120, 220, 255, 255};
 static const Color COL_BTN      = {55, 55, 60, 255};
@@ -225,6 +224,10 @@ static void draw_header(app_t *a) {
     draw_text(r, a->font_medium, status_txt, WIN_W - 88, 14, status_col);
 }
 
+/* Replicates the PSU VFD panel treatment: dark green-black background,
+ * inner bezel, subtle scan lines, triple-line border. Same dot-matrix
+ * dimensions (dot_size=2, char_gap=5) so DMM and PSU readouts match size +
+ * look side by side. */
 static void draw_readout_panel(app_t *a, int x, int y, int w, int h) {
     SDL_Renderer *r = a->renderer;
     set_color(r, COL_PANEL);
@@ -232,38 +235,66 @@ static void draw_readout_panel(app_t *a, int x, int y, int w, int h) {
     set_color(r, COL_BORDER);
     draw_rect(r, x, y, w, h);
 
-    /* Inner dark "VFD" region. */
+    /* Inner "VFD" region with PSU-style decoration. */
     int ix = x + 12, iy = y + 12, iw = w - 24, ih = h - 24;
     set_color(r, (Color){8, 18, 12, 255});
     fill_rect(r, ix, iy, iw, ih);
-    set_color(r, COL_BORDER);
-    draw_rect(r, ix, iy, iw, ih);
+    SDL_SetRenderDrawColor(r, 1, 6, 3, 255);
+    fill_rect(r, ix + 3, iy + 3, iw - 6, ih - 6);
 
-    /* Mode label top-left. */
-    draw_text(r, a->font_medium, dmm_mode_label(a->reading.mode), ix + 14, iy + 10, COL_MODE);
+    /* Faint scan lines. */
+    SDL_SetRenderDrawColor(r, 0, 10, 5, 30);
+    for (int ly = iy + 5; ly < iy + ih - 5; ly += 2)
+        SDL_RenderDrawLine(r, ix + 5, ly, ix + iw - 5, ly);
 
-    /* Range / rate / OL badges top-right. */
-    int bx = ix + iw - 14;
+    /* Triple-line border for depth. */
+    SDL_SetRenderDrawColor(r, 30, 40, 35, 255); draw_rect(r, ix + 2, iy + 2, iw - 4, ih - 4);
+    SDL_SetRenderDrawColor(r, 20, 30, 25, 255); draw_rect(r, ix + 1, iy + 1, iw - 2, ih - 2);
+    set_color(r, COL_BORDER);                   draw_rect(r, ix, iy, iw, ih);
+
+    /* Header strip — LED + mode label (amber, PSU style). */
+    int header_y = iy + 8;
+    int led_x = ix + 15, led_y = header_y + 8, led_r = 5;
+    Color led_col = a->reading.valid ? COL_OK : COL_ERR;
+    SDL_SetRenderDrawColor(r, led_col.r, led_col.g, led_col.b, 30);
+    for (int dy = -led_r - 4; dy <= led_r + 4; dy++)
+        for (int dx = -led_r - 4; dx <= led_r + 4; dx++) {
+            int d2 = dx * dx + dy * dy;
+            if (d2 <= (led_r + 4) * (led_r + 4) && d2 > led_r * led_r)
+                SDL_RenderDrawPoint(r, led_x + dx, led_y + dy);
+        }
+    set_color(r, led_col);
+    for (int dy = -led_r; dy <= led_r; dy++)
+        for (int dx = -led_r; dx <= led_r; dx++)
+            if (dx * dx + dy * dy <= led_r * led_r)
+                SDL_RenderDrawPoint(r, led_x + dx, led_y + dy);
+
+    Color label_col = {200, 160, 60, 255};
+    draw_text(r, a->font_medium, dmm_mode_label(a->reading.mode),
+              ix + 30, header_y, label_col);
+
+    /* Range / rate / OL badges on the right edge of the header strip. */
+    int bx = ix + iw - 12;
     if (a->reading.overload) {
         const char *lbl = "OL";
         int tw = 0, th = 0;
         TTF_SizeText(a->font_label, lbl, &tw, &th);
-        int bw = tw + 16;
+        int bw = tw + 14;
         set_color(r, (Color){180, 30, 30, 255});
-        fill_rounded(r, bx - bw, iy + 8, bw, 22, 3);
-        draw_text(r, a->font_label, lbl, bx - bw + 8, iy + 14, (Color){255, 255, 255, 255});
+        fill_rounded(r, bx - bw, header_y - 2, bw, 20, 3);
+        draw_text(r, a->font_label, lbl, bx - bw + 7, header_y, (Color){255, 255, 255, 255});
         bx -= bw + 6;
     }
     if (a->reading.range == 0.0f) {
         const char *lbl = "AUTO";
         int tw = 0, th = 0;
         TTF_SizeText(a->font_label, lbl, &tw, &th);
-        int bw = tw + 16;
+        int bw = tw + 14;
         set_color(r, COL_BG_WIDGET);
-        fill_rounded(r, bx - bw, iy + 8, bw, 22, 3);
+        fill_rounded(r, bx - bw, header_y - 2, bw, 20, 3);
         set_color(r, COL_BORDER_L);
-        draw_rect(r, bx - bw, iy + 8, bw, 22);
-        draw_text(r, a->font_label, lbl, bx - bw + 8, iy + 14, COL_TEXT);
+        draw_rect(r, bx - bw, header_y - 2, bw, 20);
+        draw_text(r, a->font_label, lbl, bx - bw + 7, header_y, COL_TEXT);
         bx -= bw + 6;
     }
     {
@@ -271,51 +302,70 @@ static void draw_readout_panel(app_t *a, int x, int y, int w, int h) {
                         : (a->reading.rate == DMM_RATE_FAST) ? "FAST" : "MED";
         int tw = 0, th = 0;
         TTF_SizeText(a->font_label, lbl, &tw, &th);
-        int bw = tw + 16;
+        int bw = tw + 14;
         set_color(r, COL_BG_WIDGET);
-        fill_rounded(r, bx - bw, iy + 8, bw, 22, 3);
+        fill_rounded(r, bx - bw, header_y - 2, bw, 20, 3);
         set_color(r, COL_BORDER_L);
-        draw_rect(r, bx - bw, iy + 8, bw, 22);
-        draw_text(r, a->font_label, lbl, bx - bw + 8, iy + 14, COL_DIM);
+        draw_rect(r, bx - bw, header_y - 2, bw, 20);
+        draw_text(r, a->font_label, lbl, bx - bw + 7, header_y, COL_DIM);
     }
 
-    /* Big primary readout — dot-matrix VFD, centered. */
+    /* Separator line under the header. */
+    SDL_SetRenderDrawColor(r, 0, 50, 30, 255);
+    SDL_RenderDrawLine(r, ix + 8, header_y + 22, ix + iw - 8, header_y + 22);
+
+    /* Primary readout — dot-matrix VFD, sized to match the PSU full GUI
+     * (dot_size=2, dot_gap=1, char_gap=5). 8½-digit display: 9 significant
+     * digits, decimals chosen by engineering-scaled magnitude so the field
+     * always shows the same visual width. */
     {
-        int dot_size = 4;     /* big! readout dominates the panel */
+        int dot_size = 2;
         int dot_gap  = 1;
-        int char_gap = 8;
+        int char_gap = 5;
         int char_h   = vfd_char_height(dot_size, dot_gap);
         int char_w   = vfd_char_width (dot_size, dot_gap);
         vfd_color_t on  = { COL_VAL.r, COL_VAL.g, COL_VAL.b, COL_VAL.a };
         vfd_color_t off = { 0, 20, 12, 255 };
-        int row_y = iy + ih / 2 - char_h / 2 - 6;
+
+        int content_y = header_y + 28;
+        int content_h = ih - (content_y - iy) - 8;
+        int row_y     = content_y + (content_h - char_h) / 2;
 
         char buf[32];
         if (a->reading.overload) {
-            /* "OL" via the VFD font — show as a bold marker. */
             snprintf(buf, sizeof(buf), " -OL- ");
             vfd_color_t err = { COL_ERR.r, COL_ERR.g, COL_ERR.b, COL_ERR.a };
-            int vw = vfd_draw_number(r, ix + 60, row_y, buf,
-                                     dot_size, dot_gap, char_gap, err, off, true);
-            (void)vw;
+            int approx_w = 6 * (char_w + char_gap);
+            int sx = ix + iw / 2 - approx_w / 2;
+            vfd_draw_number(r, sx, row_y, buf, dot_size, dot_gap, char_gap, err, off, true);
         } else if (!a->reading.valid) {
-            snprintf(buf, sizeof(buf), " ---- ");
+            snprintf(buf, sizeof(buf), " --------- ");
             vfd_color_t dim = { COL_DIM.r, COL_DIM.g, COL_DIM.b, COL_DIM.a };
-            vfd_draw_number(r, ix + 60, row_y, buf,
-                            dot_size, dot_gap, char_gap, dim, off, true);
+            int approx_w = 11 * (char_w + char_gap);
+            int sx = ix + iw / 2 - approx_w / 2 - 40;
+            vfd_draw_number(r, sx, row_y, buf, dot_size, dot_gap, char_gap, dim, off, true);
         } else {
             const char *prefix = "";
             float scaled = eng_scale(a->reading.value, &prefix);
-            snprintf(buf, sizeof(buf), "%9.5f", scaled);
 
-            /* Pre-measure to centre horizontally; "%9.5f" is 9 chars + decimal. */
+            /* 8½-digit display: 9 significant digits arranged so the field
+             * fits whatever magnitude the engineering-scaled value lands at. */
+            float abs_v = fabsf(scaled);
+            int decimals = (abs_v >= 100.0f) ? 6
+                         : (abs_v >= 10.0f)  ? 7
+                                             : 8;
+            snprintf(buf, sizeof(buf), "%.*f", decimals, scaled);
+
             int approx_w = 9 * (char_w + char_gap);
-            int sx = ix + iw / 2 - approx_w / 2 - 20;
-            vfd_draw_number(r, sx, row_y, buf,
-                            dot_size, dot_gap, char_gap, on, off, true);
 
             char unit[16];
             snprintf(unit, sizeof(unit), "%s%s", prefix, dmm_mode_unit(a->reading.mode));
+            int unit_w = 0, _h = 0;
+            TTF_SizeText(a->font_big, unit, &unit_w, &_h);
+
+            int total_w = approx_w + 12 + unit_w;
+            int sx = ix + iw / 2 - total_w / 2;
+            vfd_draw_number(r, sx, row_y, buf, dot_size, dot_gap, char_gap, on, off, true);
             draw_text(r, a->font_big, unit, sx + approx_w + 12,
                       row_y + char_h / 2 - 12, COL_UNIT);
         }
