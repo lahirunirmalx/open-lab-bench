@@ -7,7 +7,7 @@ fork/execs `psu_app` per window).
 
 ## Layout
 
-```
+```text
 include/
   psu_driver.h                    Public driver interface — every view talks only to this.
 
@@ -23,8 +23,11 @@ src/
     modbus_bridge/                ESP32 Modbus-text-bridge driver (Riden RD60xx etc.).
       modbus_bridge.{c,h}
       psu_protocol.{c,h}          Wire protocol used only by this driver.
-    scpi_psu/                     One driver, multiple profiles (Siglent SPD3303, Keysight E3631A/3A/4A/45A …).
-      scpi_psu.{c,h}              Profile-driven SCPI driver — works over either serial or Prologix GPIB.
+    scpi_psu/                     One driver, many profiles. Currently shipped:
+      scpi_psu.{c,h}                Siglent SPD3303; Keysight E3631A/3A/4A/5A;
+                                    Rigol DP832/832A/811/711; R&S HMP4040/4030/2030/NGE103B;
+                                    Keithley 2230G/2231A; classic HP 6632A/6633A/6634A.
+                                  Works over either USB-serial or Prologix GPIB transport.
     korad/                        Korad KA-protocol driver — Korad / TENMA / Velleman / Hanmatek / clones.
       korad.{c,h}
 
@@ -49,7 +52,7 @@ screenshots/  Makefile  README.md  LICENSE  .gitignore
 
 ## Layering
 
-```
+```text
    views   ──depend on──>  psu_driver.h          ◄── only public interface
                                 ▲
                                 │ implemented by
@@ -62,6 +65,7 @@ screenshots/  Makefile  README.md  LICENSE  .gitignore
 ```
 
 Rules:
+
 - Views never include driver or transport headers.
 - Drivers never include view or app headers.
 - The registry is the only place that knows the full list of drivers — adding
@@ -72,7 +76,7 @@ Rules:
 
 SCPI-class drivers (Siglent, Keysight) accept any of these `--port=...` formats:
 
-```
+```text
 serial:/dev/ttyUSB0                 # direct USB-serial (default baud from factory)
 serial:/dev/ttyUSB0:9600            # with explicit baud override
 prologix:/dev/ttyUSB0:5             # Prologix GPIB-USB-HPIB controller, GPIB addr 5

@@ -1,10 +1,12 @@
 # PSU Control GUI — SDL2 Application
 
 A model-agnostic bench PSU control app in C/SDL2. One binary, one launcher,
-four UI layouts, **eight** built-in drivers covering Modbus-bridge boards
-(Riden / DPS-style via ESP32), full SCPI instruments (Siglent SPD, Keysight /
-Agilent / HP E36xxA), Korad-protocol bench supplies (Korad / TENMA / Velleman
-/ Hanmatek and clones), and a synthetic demo driver for hardware-free dev.
+four UI layouts, **20 built-in drivers** covering Modbus-bridge boards
+(Riden / DPS-style via ESP32), a wide range of SCPI instruments (Siglent
+SPD, Keysight/Agilent/HP E36xxA + classic 663xA, Rigol DP800 family, Rohde
+& Schwarz HMP / NGE, Keithley 2230G / 2231A), Korad-protocol bench supplies
+(Korad / TENMA / Velleman / Hanmatek and clones), and a synthetic demo
+driver for hardware-free dev.
 
 Each PSU model is a *driver* and each UI layout is a *view*. Any view runs
 against any driver, and you can launch several `psu_app` windows side by side
@@ -48,16 +50,29 @@ Same UX as the dual toolbar but a single row driving channel 1 on the wire.
 
 ## Drivers
 
-| `--driver=`       | Hardware                                                             | Transport                                 |
-| ----------------- | -------------------------------------------------------------------- | ----------------------------------------- |
-| `modbus-bridge`   | Riden RD60xx / DPS-style PSU fronted by ESP32 firmware               | USB serial (text Modbus bridge)           |
-| `siglent-spd`     | Siglent SPD3303C / X (and SPD-series)                                | SCPI over USB-serial **or** Prologix GPIB |
-| `keysight-e3631a` | Keysight/Agilent/HP E3631A (triple output)                           | SCPI over USB-serial **or** Prologix GPIB |
-| `keysight-e3633a` | Keysight/Agilent/HP E3633A (single 8V/20A or 20V/10A)                | SCPI over USB-serial **or** Prologix GPIB |
-| `keysight-e3634a` | Keysight/Agilent/HP E3634A (single 8V/7A or 25V/4A)                  | SCPI over USB-serial **or** Prologix GPIB |
-| `keysight-e3645a` | Keysight/Agilent/HP E3645A (single 8V/5A or 20V/2.2A)                | SCPI over USB-serial **or** Prologix GPIB |
-| `korad-ka`        | Korad KA-protocol — Korad / TENMA / Velleman / Hanmatek / RND clones | USB serial (no-terminator text)           |
-| `demo`            | Synthetic 2-channel PSU — animated values, no hardware required      | none                                      |
+| `--driver=`       | Hardware                                                                          | Transport                                 |
+| ----------------- | --------------------------------------------------------------------------------- | ----------------------------------------- |
+| `modbus-bridge`   | Riden RD60xx / DPS-style PSU fronted by ESP32 firmware                            | USB serial (text Modbus bridge)           |
+| `siglent-spd`     | Siglent SPD3303C / X (and SPD-series), incl. series-tracking via SCPI             | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-e3631a` | Keysight/Agilent/HP E3631A (triple output +6V/+25V/-25V)                          | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-e3633a` | Keysight/Agilent/HP E3633A (single 8V/20A or 20V/10A)                             | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-e3634a` | Keysight/Agilent/HP E3634A (single 8V/7A or 25V/4A)                               | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-e3645a` | Keysight/Agilent/HP E3645A (single 8V/5A or 20V/2.2A)                             | SCPI over USB-serial **or** Prologix GPIB |
+| `rigol-dp832`     | Rigol DP832 (CH1+CH2 30V/3A, CH3 5V/3A)                                           | SCPI over USB-serial **or** Prologix GPIB |
+| `rigol-dp832a`    | Rigol DP832A (higher-resolution variant of DP832)                                 | SCPI over USB-serial **or** Prologix GPIB |
+| `rigol-dp811`     | Rigol DP811 single output, 20V/10A (or 40V/5A low-current)                        | SCPI over USB-serial **or** Prologix GPIB |
+| `rigol-dp711`     | Rigol DP711 single output, 30V/5A linear                                          | SCPI over USB-serial **or** Prologix GPIB |
+| `rs-hmp4040`      | Rohde & Schwarz HMP4040, quad output 32V/10A                                      | SCPI over USB-serial **or** Prologix GPIB |
+| `rs-hmp4030`      | Rohde & Schwarz HMP4030, triple output 32V/10A                                    | SCPI over USB-serial **or** Prologix GPIB |
+| `rs-hmp2030`      | Rohde & Schwarz HMP2030, triple output 32V/5A                                     | SCPI over USB-serial **or** Prologix GPIB |
+| `rs-nge103b`      | Rohde & Schwarz NGE103B, triple output 32V/3A                                     | SCPI over USB-serial **or** Prologix GPIB |
+| `keithley-2230g`  | Keithley/Tek 2230G triple output (30V/1.5A x2 + 6V/5A)                            | SCPI over USB-serial **or** Prologix GPIB |
+| `keithley-2231a`  | Keithley/Tek 2231A-30-3 triple output 30V/3A                                      | SCPI over USB-serial **or** Prologix GPIB |
+| `hp-6632a`        | Classic HP/Agilent 6632A single output 20V/5A                                     | SCPI over USB-serial **or** Prologix GPIB |
+| `hp-6633a`        | Classic HP/Agilent 6633A single output 50V/2A                                     | SCPI over USB-serial **or** Prologix GPIB |
+| `hp-6634a`        | Classic HP/Agilent 6634A single output 100V/1A                                    | SCPI over USB-serial **or** Prologix GPIB |
+| `korad-ka`        | Korad KA-protocol — Korad / TENMA / Velleman / Hanmatek / RND clones              | USB serial (no-terminator text)           |
+| `demo`            | Synthetic 2-channel PSU — animated values, no hardware required                   | none                                      |
 
 Run `./psu_app --list` to see this list with descriptions and defaults.
 
