@@ -29,6 +29,7 @@
 
 #include "scpi_dmm.h"
 
+#include "platform/platform.h"
 #include "transport/scpi.h"
 
 #include <ctype.h>
@@ -37,8 +38,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
-#include <unistd.h>
 
 #define POLL_MS          200
 #define IDN_TIMEOUT_MS   800
@@ -348,11 +347,7 @@ typedef struct {
 
 static dmm_state_t *st_of(dmm_driver_t *d) { return (dmm_state_t *)d->state; }
 
-static uint64_t now_ms(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000u + tv.tv_usec / 1000u;
-}
+#define now_ms() pl_now_ms()
 
 static const char *or_default(const char *s, const char *def) {
     return (s && *s) ? s : def;
@@ -485,7 +480,7 @@ static void *reader_main(void *arg) {
         }
 
         for (int i = 0; i < POLL_MS / 20 && s->running; i++)
-            usleep(20 * 1000);
+            pl_sleep_ms(20);
     }
     return NULL;
 }

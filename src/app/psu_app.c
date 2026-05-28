@@ -18,6 +18,7 @@
 #include "drivers/registry.h"
 #include "dmm_driver.h"
 #include "launcher.h"
+#include "platform/platform.h"
 #include "psu_driver.h"
 #include "views/views.h"
 
@@ -25,7 +26,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 static void usage(FILE *out, const char *prog) {
     fprintf(out,
@@ -79,8 +79,7 @@ static const char *opt_value(const char *arg, const char *prefix) {
 }
 
 static void resolve_self_exe(const char *argv0, char *out, size_t out_sz) {
-    ssize_t n = readlink("/proc/self/exe", out, out_sz - 1);
-    if (n > 0) { out[n] = '\0'; return; }
+    if (pl_self_exe(out, out_sz)) return;
     snprintf(out, out_sz, "%s", argv0 ? argv0 : "psu_app");
 }
 

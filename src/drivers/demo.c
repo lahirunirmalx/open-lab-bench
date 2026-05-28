@@ -8,11 +8,12 @@
 
 #include "demo.h"
 
+#include "platform/platform.h"
+
 #include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
 
 #define V_MAX 36.0f
 #define I_MAX  6.0f
@@ -30,11 +31,7 @@ typedef struct {
     uint64_t t0_ms;
 } demo_state_t;
 
-static uint64_t now_ms(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000u + tv.tv_usec / 1000u;
-}
+#define now_ms() pl_now_ms()
 
 static demo_state_t *st_of(psu_driver_t *d) { return (demo_state_t *)d->state; }
 

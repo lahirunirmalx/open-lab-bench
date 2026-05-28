@@ -5,11 +5,12 @@
 
 #include "dmm_demo.h"
 
+#include "platform/platform.h"
+
 #include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
 
 typedef struct {
     pthread_mutex_t lock;
@@ -19,11 +20,7 @@ typedef struct {
     uint64_t        t0_ms;
 } demo_state_t;
 
-static uint64_t now_ms(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000u + tv.tv_usec / 1000u;
-}
+#define now_ms() pl_now_ms()
 
 static demo_state_t *st_of(dmm_driver_t *d) { return (demo_state_t *)d->state; }
 

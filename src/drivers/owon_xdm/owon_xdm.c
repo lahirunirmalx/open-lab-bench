@@ -32,6 +32,7 @@
 
 #include "owon_xdm.h"
 
+#include "platform/platform.h"
 #include "serial_port.h"
 
 #include <ctype.h>
@@ -40,8 +41,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
-#include <unistd.h>
 
 #define POLL_MS          200
 #define IDN_TIMEOUT_MS   800
@@ -70,11 +69,7 @@ typedef struct {
 
 static xdm_state_t *st_of(dmm_driver_t *d) { return (xdm_state_t *)d->state; }
 
-static uint64_t now_ms(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000u + tv.tv_usec / 1000u;
-}
+#define now_ms() pl_now_ms()
 
 /* ---- IDN parsing for firmware version detection ---- */
 
@@ -279,7 +274,7 @@ static void *reader_main(void *arg) {
 
         /* Pace the loop. */
         for (int i = 0; i < POLL_MS / 20 && s->running; i++)
-            usleep(20 * 1000);
+            pl_sleep_ms(20);
     }
     return NULL;
 }

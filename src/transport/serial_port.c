@@ -119,6 +119,22 @@ bool serial_send_line(serial_port_t *sp, const char *line) {
     return written == 1;
 }
 
+bool serial_write_bytes(serial_port_t *sp, const void *buf, size_t len) {
+    if (!sp || sp->fd < 0 || !buf) return false;
+    if (len == 0) return true;
+    pthread_mutex_lock(&sp->write_lock);
+    const char *p = (const char *)buf;
+    size_t off = 0;
+    bool ok = true;
+    while (off < len) {
+        ssize_t w = write(sp->fd, p + off, len - off);
+        if (w < 0) { ok = false; break; }
+        off += (size_t)w;
+    }
+    pthread_mutex_unlock(&sp->write_lock);
+    return ok;
+}
+
 bool serial_read_line(serial_port_t *sp, char *buf, size_t buflen, int timeout_ms) {
     if (!sp || sp->fd < 0 || !buf || buflen == 0)
         return false;
@@ -210,6 +226,38 @@ bool serial_read_line(serial_port_t *sp, char *buf, size_t buflen, int timeout_m
     }
 
     return false;
+}
+
+int serial_read_bytes(serial_port_t *sp, void *buf, size_t maxlen, int timeout_ms) {
+    if (!sp || sp->fd < 0 || !buf || maxlen == 0) return -1;
+
+    /* If our line-buffer already has bytes, drain them first. */
+    if (sp->read_pos > 0) {
+        size_t take = (sp->read_pos < maxlen) ? sp->read_pos : maxlen;
+        memcpy(buf, sp->read_buf, take);
+        if (take < sp->read_pos) {
+            memmove(sp->read_buf, sp->read_buf + take, sp->read_pos - take);
+        }
+        sp->read_pos -= take;
+        return (int)take;
+    }
+
+    fd_set rs;
+    FD_ZERO(&rs);
+    FD_SET(sp->fd, &rs);
+    struct timeval tv;
+    if (timeout_ms >= 0) {
+        tv.tv_sec  = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+    }
+    int r = select(sp->fd + 1, &rs, NULL, NULL,
+                   (timeout_ms < 0) ? NULL : &tv);
+    if (r < 0) return -1;
+    if (r == 0) return 0;     /* timeout */
+
+    ssize_t n = read(sp->fd, buf, maxlen);
+    if (n < 0) return -1;
+    return (int)n;
 }
 
 bool serial_command(serial_port_t *sp, const char *cmd, char *resp, size_t resp_len, int timeout_ms) {

@@ -22,6 +22,7 @@
 
 #include "korad.h"
 
+#include "platform/platform.h"
 #include "serial_port.h"
 
 #include <math.h>
@@ -30,9 +31,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/select.h>
-#include <sys/time.h>
-#include <unistd.h>
 
 #define V_MAX            30.0f
 #define I_MAX             5.0f
@@ -61,53 +59,29 @@ typedef struct {
 
 static korad_state_t *st_of(psu_driver_t *d) { return (korad_state_t *)d->state; }
 
-static uint64_t now_ms(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000u + tv.tv_usec / 1000u;
-}
+#define now_ms() pl_now_ms()
 
-static void delay_ms(int ms) {
-    if (ms <= 0) return;
-    usleep((useconds_t)ms * 1000);
-}
+static void delay_ms(int ms) { pl_sleep_ms((unsigned)(ms > 0 ? ms : 0)); }
 
 /* Write the exact bytes of `cmd` (no terminator). */
 static bool korad_write_raw(korad_state_t *s, const char *cmd) {
-    int fd = serial_get_fd(s->sp);
-    if (fd < 0) return false;
-    size_t n = strlen(cmd);
-    size_t off = 0;
-    while (off < n) {
-        ssize_t w = write(fd, cmd + off, n - off);
-        if (w < 0) {
-            s->err_count++;
-            return false;
-        }
-        off += (size_t)w;
-    }
-    return true;
+    bool ok = serial_write_bytes(s->sp, cmd, strlen(cmd));
+    if (!ok) s->err_count++;
+    return ok;
 }
 
 /* Read until IDLE_TIMEOUT_MS of silence. Returns bytes captured. */
 static int korad_read_idle(korad_state_t *s, char *out, size_t outlen) {
-    int fd = serial_get_fd(s->sp);
-    if (fd < 0 || !out || outlen == 0) return -1;
+    if (!out || outlen == 0) return -1;
     size_t got = 0;
     while (got + 1 < outlen) {
-        fd_set rs;
-        FD_ZERO(&rs);
-        FD_SET(fd, &rs);
-        struct timeval tv = { .tv_sec = 0, .tv_usec = IDLE_TIMEOUT_MS * 1000 };
-        int r = select(fd + 1, &rs, NULL, NULL, &tv);
-        if (r <= 0) break;            /* timeout or error → done */
-        char buf[64];
-        ssize_t n = read(fd, buf, sizeof(buf));
-        if (n <= 0) break;
-        size_t take = (size_t)n;
-        if (take > outlen - 1 - got) take = outlen - 1 - got;
-        memcpy(out + got, buf, take);
-        got += take;
+        char tmp[64];
+        size_t want = sizeof(tmp);
+        if (want > outlen - 1 - got) want = outlen - 1 - got;
+        int n = serial_read_bytes(s->sp, tmp, want, IDLE_TIMEOUT_MS);
+        if (n <= 0) break;            /* timeout (0) or error (-1) → done */
+        memcpy(out + got, tmp, (size_t)n);
+        got += (size_t)n;
     }
     out[got] = '\0';
     return (int)got;

@@ -31,19 +31,17 @@
 #include "launcher.h"
 
 #include "drivers/registry.h"
+#include "platform/platform.h"
 #include "views/views.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-#include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 #define WIN_W       760
 #define WIN_H       720
@@ -552,18 +550,17 @@ static int spawn_instance(launcher_t *L) {
              L->port[0] ? L->port : "-");
     snprintf(arg_baud,   sizeof(arg_baud),   "--baud=%d",   baud);
 
-    pid_t pid = fork();
-    if (pid < 0) return -1;
-    if (pid == 0) {
-        char *argv[] = {
-            (char *)L->self_exe,
-            arg_driver, arg_view, arg_port, arg_baud,
-            NULL,
-        };
-        execv(L->self_exe, argv);
-        _exit(127);
+    char *argv[] = {
+        (char *)L->self_exe,
+        arg_driver, arg_view, arg_port, arg_baud,
+        NULL,
+    };
+    if (!pl_spawn(L->self_exe, argv)) {
+        set_status(L, (Color){220, 60, 60, 255},
+                   "failed to spawn %s + %s", drv_id, view_id);
+        return -1;
     }
-    set_status(L, COL_OK, "launched %s + %s  (pid %d)", drv_id, view_id, (int)pid);
+    set_status(L, COL_OK, "launched %s + %s", drv_id, view_id);
     return 0;
 }
 
@@ -668,7 +665,8 @@ int launcher_run(const char *self_exe_path) {
         return 1;
     }
 
-    signal(SIGCHLD, SIG_IGN);  /* auto-reap spawned instances */
+    /* SIGCHLD-ignore is installed inside pl_spawn() on POSIX so spawned
+     * children auto-reap. Win32 doesn't need anything. */
 
     launcher_t L;
     memset(&L, 0, sizeof(L));

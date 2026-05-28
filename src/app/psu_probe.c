@@ -14,12 +14,12 @@
  */
 
 #include "drivers/registry.h"
+#include "platform/platform.h"
 #include "psu_driver.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 static void list_drivers(void) {
     size_t n;
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     printf("Polling for %d seconds...\n", seconds);
 
     for (int i = 0; i < seconds; i++) {
-        sleep(1);
+        pl_sleep_ms(1000);
         printf("[t=%d] connected=%d\n", i + 1, d->is_connected(d) ? 1 : 0);
         for (int ch = 1; ch <= d->caps.n_channels; ch++) {
             psu_channel_state_t s;

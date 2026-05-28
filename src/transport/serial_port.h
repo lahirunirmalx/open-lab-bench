@@ -42,6 +42,12 @@ int serial_get_fd(serial_port_t *sp);
 bool serial_send_line(serial_port_t *sp, const char *line);
 
 /**
+ * Write raw bytes — no line terminator added. For wire protocols that
+ * don't use line termination (e.g. Korad text protocol). Thread-safe.
+ */
+bool serial_write_bytes(serial_port_t *sp, const void *buf, size_t len);
+
+/**
  * Read a line (non-blocking).
  * @param buf    output buffer
  * @param buflen buffer size
@@ -49,6 +55,16 @@ bool serial_send_line(serial_port_t *sp, const char *line);
  * @return true if line received, false on timeout/error
  */
 bool serial_read_line(serial_port_t *sp, char *buf, size_t buflen, int timeout_ms);
+
+/**
+ * Read up to `maxlen` raw bytes with an overall timeout. Returns
+ * immediately when at least one byte arrives, or after `timeout_ms`
+ * milliseconds of silence. Used by drivers whose wire protocol is not
+ * line-terminated (e.g. Korad).
+ *
+ * @return number of bytes read (0 on timeout, -1 on error).
+ */
+int  serial_read_bytes(serial_port_t *sp, void *buf, size_t maxlen, int timeout_ms);
 
 /**
  * Send command and read response (blocking with timeout).

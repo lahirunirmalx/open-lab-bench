@@ -15,6 +15,7 @@
 
 #include "scpi_psu.h"
 
+#include "platform/platform.h"
 #include "transport/scpi.h"
 
 #include <math.h>
@@ -22,8 +23,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
-#include <unistd.h>
 
 #define MAX_CHANNELS 4
 
@@ -417,11 +416,7 @@ typedef struct {
 
 static scpi_psu_state_t *st_of(psu_driver_t *d) { return (scpi_psu_state_t *)d->state; }
 
-static uint64_t now_ms(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000u + tv.tv_usec / 1000u;
-}
+#define now_ms() pl_now_ms()
 
 /* Send a command optionally prefixed by a channel-select. With
  * channel_in_command, the channel is baked into the command and select is
@@ -532,7 +527,7 @@ static void *reader_main(void *arg) {
         }
         /* Coarse poll; SCPI/GPIB instruments don't like being hammered. */
         for (int i = 0; i < DEFAULT_POLL_MS / 20 && s->running; i++)
-            usleep(20 * 1000);
+            pl_sleep_ms(20);
     }
     return NULL;
 }

@@ -4,17 +4,14 @@
  */
 
 #include "psu_protocol.h"
+
+#include "platform/platform.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <sys/time.h>
 
-static uint64_t get_time_ms(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
-}
+#define get_time_ms() pl_now_ms()
 
 /**
  * Parse extended DATA line with all fields.
@@ -154,7 +151,7 @@ bool psu_init(psu_context_t *ctx, const char *device, int baud) {
         return false;
     }
 
-    usleep(200000);
+    pl_sleep_ms(200);
 
     return true;
 }
