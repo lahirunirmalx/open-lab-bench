@@ -267,8 +267,8 @@ int view_full_single_run(psu_driver_t *drv) {
                                   initial_w, WIN_H, SDL_WINDOW_SHOWN);
     if (!a.c.window) { TTF_Quit(); SDL_Quit(); return 1; }
 
-    a.c.renderer = SDL_CreateRenderer(a.c.window, -1,
-                                      SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    a.c.renderer = SDL_CreateRenderer(a.c.window, -1, SDL_RENDERER_PRESENTVSYNC);
+    if (!a.c.renderer) a.c.renderer = SDL_CreateRenderer(a.c.window, -1, 0);
     if (!a.c.renderer) {
         SDL_DestroyWindow(a.c.window);
         TTF_Quit(); SDL_Quit();

@@ -275,8 +275,8 @@ int view_dmm_toolbar_run(dmm_driver_t *drv) {
                                 WIN_W, WIN_H, SDL_WINDOW_SHOWN);
     if (!a.window) { cleanup(&a); return 1; }
 
-    a.renderer = SDL_CreateRenderer(a.window, -1,
-                                    SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    a.renderer = SDL_CreateRenderer(a.window, -1, SDL_RENDERER_PRESENTVSYNC);
+    if (!a.renderer) a.renderer = SDL_CreateRenderer(a.window, -1, 0);
     if (!a.renderer) { cleanup(&a); return 1; }
     SDL_SetRenderDrawBlendMode(a.renderer, SDL_BLENDMODE_BLEND);
 

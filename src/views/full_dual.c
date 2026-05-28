@@ -240,8 +240,11 @@ int view_full_dual_run(psu_driver_t *drv) {
                                 WIN_W, WIN_H, SDL_WINDOW_SHOWN);
     if (!c.window) { TTF_Quit(); SDL_Quit(); return 1; }
 
-    c.renderer = SDL_CreateRenderer(c.window, -1,
-                                    SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    /* Prefer vsync, but fall back when the chosen renderer doesn't support
+     * it — headless environments (SDL_VIDEODRIVER=dummy) only expose a
+     * software renderer with no vsync. SDL still prefers hardware first. */
+    c.renderer = SDL_CreateRenderer(c.window, -1, SDL_RENDERER_PRESENTVSYNC);
+    if (!c.renderer) c.renderer = SDL_CreateRenderer(c.window, -1, 0);
     if (!c.renderer) {
         SDL_DestroyWindow(c.window);
         TTF_Quit(); SDL_Quit();

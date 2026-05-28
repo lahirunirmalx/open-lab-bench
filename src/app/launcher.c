@@ -691,8 +691,8 @@ int launcher_run(const char *self_exe_path) {
                              SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                              WIN_W, WIN_H, SDL_WINDOW_SHOWN);
     if (!L.win) { cleanup(&L); return 1; }
-    L.r = SDL_CreateRenderer(L.win, -1,
-                             SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    L.r = SDL_CreateRenderer(L.win, -1, SDL_RENDERER_PRESENTVSYNC);
+    if (!L.r) L.r = SDL_CreateRenderer(L.win, -1, 0);
     if (!L.r) { cleanup(&L); return 1; }
     SDL_SetRenderDrawBlendMode(L.r, SDL_BLENDMODE_BLEND);
     if (!open_fonts(&L)) { cleanup(&L); return 1; }
