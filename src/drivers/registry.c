@@ -1,13 +1,17 @@
 #include "registry.h"
 
 #include "demo.h"
+#include "dmm_demo.h"
 #include "korad/korad.h"
 #include "modbus_bridge/modbus_bridge.h"
+#include "owon_xdm/owon_xdm.h"
 #include "scpi_psu/scpi_psu.h"
 
 #include <string.h>
 
-static const psu_driver_factory_t *const k_drivers[] = {
+/* ---- PSU registry ---- */
+
+static const psu_driver_factory_t *const k_psu_drivers[] = {
     &modbus_bridge_factory,
 
     /* SCPI — Siglent + Keysight/Agilent/HP. */
@@ -45,15 +49,36 @@ static const psu_driver_factory_t *const k_drivers[] = {
 };
 
 const psu_driver_factory_t *const *psu_drivers_list(size_t *count) {
-    if (count) *count = sizeof(k_drivers) / sizeof(k_drivers[0]);
-    return k_drivers;
+    if (count) *count = sizeof(k_psu_drivers) / sizeof(k_psu_drivers[0]);
+    return k_psu_drivers;
 }
 
 const psu_driver_factory_t *psu_drivers_find(const char *id) {
     if (!id) return NULL;
-    size_t n = sizeof(k_drivers) / sizeof(k_drivers[0]);
+    size_t n = sizeof(k_psu_drivers) / sizeof(k_psu_drivers[0]);
     for (size_t i = 0; i < n; i++) {
-        if (strcmp(k_drivers[i]->id, id) == 0) return k_drivers[i];
+        if (strcmp(k_psu_drivers[i]->id, id) == 0) return k_psu_drivers[i];
+    }
+    return NULL;
+}
+
+/* ---- DMM registry ---- */
+
+static const dmm_driver_factory_t *const k_dmm_drivers[] = {
+    &owon_xdm_factory,
+    &dmm_demo_factory,
+};
+
+const dmm_driver_factory_t *const *dmm_drivers_list(size_t *count) {
+    if (count) *count = sizeof(k_dmm_drivers) / sizeof(k_dmm_drivers[0]);
+    return k_dmm_drivers;
+}
+
+const dmm_driver_factory_t *dmm_drivers_find(const char *id) {
+    if (!id) return NULL;
+    size_t n = sizeof(k_dmm_drivers) / sizeof(k_dmm_drivers[0]);
+    for (size_t i = 0; i < n; i++) {
+        if (strcmp(k_dmm_drivers[i]->id, id) == 0) return k_dmm_drivers[i];
     }
     return NULL;
 }
