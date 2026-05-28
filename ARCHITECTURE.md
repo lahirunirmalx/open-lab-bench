@@ -44,8 +44,17 @@ src/
                                   reaches the instrument over either USB-serial or
                                   Prologix GPIB-USB-HPIB.
 
+  platform/                       Thin OS shim — keeps everything else portable.
+    platform.h                    Public API: pl_sleep_ms, pl_now_ms, pl_self_exe, pl_spawn.
+    platform_posix.c              POSIX backend (Linux/macOS): usleep, gettimeofday,
+                                  /proc/self/exe, fork+execv, SIGCHLD ignore.
+    platform_win32.c              Win32 backend: Sleep, GetTickCount64,
+                                  GetModuleFileNameW, CreateProcessW.
+
   transport/                      Wire layers shared by drivers.
-    serial_port.{c,h}             POSIX serial helper.
+    serial_port.{c,h}             POSIX serial helper (termios).
+    serial_port_win32.c           Native Win32 alternative (CreateFile + SetCommState +
+                                  ReadFile/WriteFile). Makefile picks one per OS.
     scpi.{c,h}                    SCPI client API + port-spec parser (serial:/prologix: schemes).
     scpi_serial.c                 SCPI transport: direct USB-serial.
     scpi_prologix.c               SCPI transport: Prologix GPIB-USB-HPIB controller.

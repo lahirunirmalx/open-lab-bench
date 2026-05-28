@@ -1,6 +1,9 @@
 # Open LabBench
 
-A model-agnostic bench-instrument control app in C/SDL2. One binary, one
+[![build](https://github.com/lahirunirmalx/open-lab-bench/actions/workflows/build.yml/badge.svg)](https://github.com/lahirunirmalx/open-lab-bench/actions/workflows/build.yml)
+
+A model-agnostic bench-instrument control app in C/SDL2. Builds on Linux
+and Windows from the same source tree. One binary, one
 launcher, **six** UI layouts (four for PSUs, two for DMMs), and a growing set
 of drivers across two instrument classes:
 
@@ -205,13 +208,44 @@ not currently wired in.
 
 ## Build
 
+### Linux / macOS
+
 ```bash
 make              # everything (psu_app, psu_probe, legacy GUIs)
 make app          # only psu_app
 make probe        # only psu_probe
 make legacy       # only the four legacy GUIs
+make platform     # show the auto-detected platform settings
 make clean
 ```
+
+### Windows (MSYS2 / MinGW-w64)
+
+The same `make` builds a native Windows binary. From the MSYS2 **MINGW64**
+shell:
+
+```bash
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config \
+          mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_ttf
+make
+./psu_app.exe --list
+```
+
+The Makefile auto-detects `OS=Windows_NT` and:
+
+- swaps `src/transport/serial_port.c` (POSIX `<termios.h>`) for
+  `src/transport/serial_port_win32.c` (CreateFile + SetCommState +
+  ReadFile/WriteFile)
+- swaps `src/platform/platform_posix.c` (usleep / gettimeofday / fork /
+  /proc/self/exe) for `src/platform/platform_win32.c` (Sleep /
+  GetTickCount64 / CreateProcessW / GetModuleFileNameW)
+- skips the four `legacy/` GUIs (they call `tcsetattr` directly)
+- emits `psu_app.exe` and `psu_probe.exe`
+
+Pre-built Windows binaries land as a CI artifact on every `main` push —
+see the **Actions** tab. Serial ports use Windows naming (`COM3`,
+`COM10`, …); for COM10+ the Makefile and serial layer automatically
+rewrite to the `\\.\COM10` form.
 
 ---
 
