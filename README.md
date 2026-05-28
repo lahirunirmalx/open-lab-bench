@@ -1,0 +1,225 @@
+# PSU Control GUI — SDL2 Application
+
+A model-agnostic bench PSU control app in C/SDL2. One binary, one launcher,
+four UI layouts, **eight** built-in drivers covering Modbus-bridge boards
+(Riden / DPS-style via ESP32), full SCPI instruments (Siglent SPD, Keysight /
+Agilent / HP E36xxA), Korad-protocol bench supplies (Korad / TENMA / Velleman
+/ Hanmatek and clones), and a synthetic demo driver for hardware-free dev.
+
+Each PSU model is a *driver* and each UI layout is a *view*. Any view runs
+against any driver, and you can launch several `psu_app` windows side by side
+each on a different combination (e.g. one window driving a Modbus bridge in
+the full GUI, another driving a Siglent over GPIB in the toolbar).
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the driver/view layering and the
+port-spec grammar.
+
+## Screenshots
+
+Images live in [`screenshots/`](screenshots/).
+
+### Full GUI — dual channel  (`--view=full-dual`)
+
+Two **OUTPUT** panels (CH1 / CH2), shared keypad, **SYSTEM CONTROL** toolbar
+with **TRACKING**.
+
+![Dual-channel full GUI](screenshots/full-gui-dual.png)
+
+### Full GUI — single channel  (`--view=full-single`)
+
+Compact window: one **OUTPUT 1** panel, **CONTROL** toolbar (no tracking),
+collapsible keypad (**`<`** on the keypad bar to hide, **`>`** strip to show
+again).
+
+![Single-channel full GUI](screenshots/full-gui-single.png)
+
+### Toolbar — dual channel  (`--view=toolbar-dual`)
+
+Minimal strip: **CH1** and **CH2** side by side, large V/A readouts, **SET**
+popup for setpoints, **OUT** per channel.
+
+![Dual-channel toolbar](screenshots/toolbar-dual.png)
+
+### Toolbar — single channel  (`--view=toolbar-single`)
+
+Same UX as the dual toolbar but a single row driving channel 1 on the wire.
+
+---
+
+## Drivers
+
+| `--driver=`       | Hardware                                                             | Transport                                 |
+| ----------------- | -------------------------------------------------------------------- | ----------------------------------------- |
+| `modbus-bridge`   | Riden RD60xx / DPS-style PSU fronted by ESP32 firmware               | USB serial (text Modbus bridge)           |
+| `siglent-spd`     | Siglent SPD3303C / X (and SPD-series)                                | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-e3631a` | Keysight/Agilent/HP E3631A (triple output)                           | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-e3633a` | Keysight/Agilent/HP E3633A (single 8V/20A or 20V/10A)                | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-e3634a` | Keysight/Agilent/HP E3634A (single 8V/7A or 25V/4A)                  | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-e3645a` | Keysight/Agilent/HP E3645A (single 8V/5A or 20V/2.2A)                | SCPI over USB-serial **or** Prologix GPIB |
+| `korad-ka`        | Korad KA-protocol — Korad / TENMA / Velleman / Hanmatek / RND clones | USB serial (no-terminator text)           |
+| `demo`            | Synthetic 2-channel PSU — animated values, no hardware required      | none                                      |
+
+Run `./psu_app --list` to see this list with descriptions and defaults.
+
+Adding another SCPI instrument is a one-profile-entry change in
+[`src/drivers/scpi_psu/scpi_psu.c`](src/drivers/scpi_psu/scpi_psu.c); adding
+a fully new wire protocol is a sibling folder under `src/drivers/` plus one
+line in `src/drivers/registry.c` — see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Port-spec grammar (SCPI drivers)
+
+```text
+serial:/dev/ttyUSB0                # direct USB-serial (default baud)
+serial:/dev/ttyUSB0:9600           # with explicit baud override
+prologix:/dev/ttyUSB0:5            # Prologix GPIB-USB-HPIB controller, GPIB addr 5
+prologix:/dev/ttyUSB0:5:115200     # with explicit Prologix-port baud
+/dev/ttyUSB0                       # shorthand → serial:/dev/ttyUSB0
+```
+
+Non-SCPI drivers (modbus-bridge, korad-ka) just take the bare device path.
+
+---
+
+## Binaries
+
+| Binary | Role |
+| ------ | ---- |
+| `psu_app` | Main app. No args → launcher; with `--driver`/`--view` → runs that combination directly (this is what the launcher fork/execs for each new window). |
+| `psu_probe` | Non-SDL CLI for sanity-checking a driver without launching the GUI. |
+| `psu_gui` / `psu_gui_single` / `psu_gui_toolbar` / `psu_gui_toolbar_single` | Legacy stand-alone GUIs under [`legacy/`](legacy/). Kept building during the refactor so a known-good reference is always available; retired once the matching view runs cleanly inside `psu_app`. |
+
+---
+
+## Features
+
+### Full GUI
+
+- **VFD display** — voltage, current, power with green-on-black style
+- **Bar meters** — voltage and current vs full-scale (read from driver caps)
+- **Temperature** — gradient bar with warning behavior
+- **Scope traces** — voltage (green) and current (yellow) on one timebase
+- **OUTPUT** toggle, **SET VOLTAGE / SET CURRENT** fields and buttons
+- **Keypad** — numeric entry for setpoints (dual: CH1/CH2 toggle; single: CH1 only, collapsible panel)
+- **TRACKING** (dual only) — driver-side `set_tracking()`
+
+### Toolbar GUI
+
+- Large **V** and **A** readouts, **ON/OFF**, **CV/CC**, **ERR** when invalid
+- **OUT** toggles output; **SET** opens a modal for V/A setpoints (**APPLY**, **CANCEL**, click outside, **Esc**)
+- Window height grows while the popup is open
+
+### Launcher
+
+- Driver list (radio-button style) with descriptions
+- Editable PORT field (use a bare path or any of the schemes above)
+- View list, automatically greyed out when the driver doesn't have enough channels or the view isn't ported yet
+- **LAUNCH** fork/execs `psu_app` so each window is its own process and many can coexist
+- ESC quits the launcher
+
+### Demo mode
+
+Pick `--driver=demo` (no hardware needed). The synthetic 2-channel driver
+animates plausible values and accepts setpoint writes; useful for trying out
+views without an instrument.
+
+---
+
+## Dependencies
+
+```bash
+# Ubuntu/Debian
+sudo apt install libsdl2-dev libsdl2-ttf-dev
+
+# Fedora
+sudo dnf install SDL2-devel SDL2_ttf-devel
+
+# Arch
+sudo pacman -S sdl2 sdl2_ttf
+```
+
+A monospace font is required (DejaVu Sans Mono or Liberation Mono — both
+auto-detected from common system paths).
+
+GPIB access via a Prologix USB controller needs **no extra library** — the
+controller appears as a USB-serial device. Native linux-gpib support is
+not currently wired in.
+
+---
+
+## Build
+
+```bash
+make              # everything (psu_app, psu_probe, legacy GUIs)
+make app          # only psu_app
+make probe        # only psu_probe
+make legacy       # only the four legacy GUIs
+make clean
+```
+
+---
+
+## Run
+
+```bash
+./psu_app --list
+
+# No args → launcher window
+./psu_app
+
+# Or jump straight to a combination
+./psu_app --driver=demo            --view=toolbar-single  --port=-
+./psu_app --driver=modbus-bridge   --view=toolbar-dual    --port=/dev/ttyUSB0
+./psu_app --driver=siglent-spd     --view=toolbar-dual    --port=serial:/dev/ttyUSB0
+./psu_app --driver=siglent-spd     --view=toolbar-dual    --port=prologix:/dev/ttyUSB0:5
+./psu_app --driver=keysight-e3631a --view=toolbar-single  --port=prologix:/dev/ttyUSB0:6
+./psu_app --driver=korad-ka        --view=toolbar-single  --port=/dev/ttyUSB0
+
+# Non-GUI driver smoke check
+./psu_probe modbus-bridge /dev/ttyUSB0
+
+# Legacy binaries (until their views are ported to psu_app)
+./psu_gui_toolbar_single /dev/ttyUSB0
+./psu_gui                /dev/ttyUSB0       # full dual
+./psu_gui_single         /dev/ttyUSB0       # full single
+```
+
+Run `psu_app` multiple times to open several windows side by side, each with
+its own driver + view combo.
+
+Single-channel views drive **channel 1** of the underlying driver.
+
+---
+
+## Wire protocols at a glance
+
+- **modbus-bridge** — the ESP32 firmware emits `DATA <ch> key=val ...` lines
+  and accepts `STATUS <ch>`, `WRITE <ch> <reg> <val>`, `LINK`. See the ESP32
+  firmware README for the full register map.
+- **SCPI drivers** — standard `*IDN?`, `MEAS:VOLT? CH1`, `OUTP CH1,ON`, etc.
+  Profiles per model live in
+  [`src/drivers/scpi_psu/scpi_psu.c`](src/drivers/scpi_psu/scpi_psu.c).
+- **korad-ka** — text commands with **no terminator** (`VSET1:5.00`,
+  `IOUT1?`, `OUT1`, `STATUS?`). The driver uses idle-timeout reads to
+  delimit responses.
+
+---
+
+## Code structure
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full tree and layering rules.
+Short version:
+
+```text
+include/psu_driver.h               public driver interface
+src/app/             entry point + SDL launcher + CLI probe
+src/transport/       serial_port, scpi.* (serial + Prologix-GPIB transports)
+src/drivers/         demo, modbus_bridge/, scpi_psu/, korad/  (+ registry)
+src/views/           toolbar_single, toolbar_dual, full_common (full views WIP)
+legacy/              original four standalone GUIs, retired as views are ported
+```
+
+---
+
+## License
+
+MIT

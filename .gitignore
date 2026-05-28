@@ -1,0 +1,29 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.d
+
+# Binaries built by `make all`
+/psu_app
+/psu_probe
+/psu_gui
+/psu_gui_single
+/psu_gui_toolbar
+/psu_gui_toolbar_single
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+core
+*.log
