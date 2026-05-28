@@ -1,12 +1,22 @@
 # PSU Control GUI — SDL2 Application
 
-A model-agnostic bench PSU control app in C/SDL2. One binary, one launcher,
-four UI layouts, **20 built-in drivers** covering Modbus-bridge boards
-(Riden / DPS-style via ESP32), a wide range of SCPI instruments (Siglent
-SPD, Keysight/Agilent/HP E36xxA + classic 663xA, Rigol DP800 family, Rohde
-& Schwarz HMP / NGE, Keithley 2230G / 2231A), Korad-protocol bench supplies
-(Korad / TENMA / Velleman / Hanmatek and clones), and a synthetic demo
-driver for hardware-free dev.
+A model-agnostic bench-instrument control app in C/SDL2. One binary, one
+launcher, **six** UI layouts (four for PSUs, two for DMMs), and a growing set
+of drivers across two instrument classes:
+
+- **PSUs** — Modbus-bridge boards (Riden / DPS-style via ESP32), SCPI
+  supplies (Siglent SPD, Keysight/Agilent/HP E36xxA + classic 663xA, Rigol
+  DP800 family, Rohde & Schwarz HMP / NGE, Keithley 2230G / 2231A),
+  Korad-protocol bench supplies (Korad / TENMA / Velleman / Hanmatek and
+  clones), plus a synthetic demo driver.
+- **DMMs** — OWON XDM-series (XDM1041 / XDM1241 / XDM2041, +XDM3000 if SCPI-compatible)
+  over USB-serial, plus a synthetic demo DMM.
+
+The launcher knows the instrument kind: selecting a PSU driver enables the
+PSU views (toolbar-single, toolbar-dual, full-single, full-dual); selecting
+a DMM driver enables the DMM views (dmm-toolbar, dmm-full). Each LAUNCH
+fork/execs `psu_app` so several windows can run side-by-side, each with its
+own driver+view combination.
 
 Each PSU model is a *driver* and each UI layout is a *view*. Any view runs
 against any driver, and you can launch several `psu_app` windows side by side
@@ -46,6 +56,19 @@ popup for setpoints, **OUT** per channel.
 
 Same UX as the dual toolbar but a single row driving channel 1 on the wire.
 
+### DMM toolbar  (`--view=dmm-toolbar`)
+
+Compact strip: mode label (DCV / ACV / Ω / …), big primary reading scaled
+to engineering units (mV / µA / kΩ / …), AUTO badge when auto-ranging, OL
+on overload, rate label. Read-only — mode and range are changed on the
+meter front panel or via the full DMM view.
+
+### DMM full  (`--view=dmm-full`)
+
+Bigger window with a large primary readout, mode/range/rate buttons, a
+running min/max/avg, and a recent-trace scope strip. Mode buttons are
+greyed out for modes the driver doesn't expose.
+
 ---
 
 ## Drivers
@@ -73,6 +96,13 @@ Same UX as the dual toolbar but a single row driving channel 1 on the wire.
 | `hp-6634a`        | Classic HP/Agilent 6634A single output 100V/1A                                    | SCPI over USB-serial **or** Prologix GPIB |
 | `korad-ka`        | Korad KA-protocol — Korad / TENMA / Velleman / Hanmatek / RND clones              | USB serial (no-terminator text)           |
 | `demo`            | Synthetic 2-channel PSU — animated values, no hardware required                   | none                                      |
+
+### DMM drivers
+
+| `--driver=` | Hardware                                                                                 | Transport            |
+| ----------- | ---------------------------------------------------------------------------------------- | -------------------- |
+| `owon-xdm`  | OWON XDM-series bench DMM — XDM1041 / XDM1241 / XDM2041 (+ XDM3000 family if compatible) | SCPI over USB serial |
+| `dmm-demo`  | Synthetic 6½-digit DMM — animated reading, no hardware                                   | none                 |
 
 Run `./psu_app --list` to see this list with descriptions and defaults.
 
@@ -188,6 +218,11 @@ make clean
 ./psu_app --driver=siglent-spd     --view=toolbar-dual    --port=prologix:/dev/ttyUSB0:5
 ./psu_app --driver=keysight-e3631a --view=toolbar-single  --port=prologix:/dev/ttyUSB0:6
 ./psu_app --driver=korad-ka        --view=toolbar-single  --port=/dev/ttyUSB0
+
+# DMM combinations
+./psu_app --driver=dmm-demo        --view=dmm-full        --port=-
+./psu_app --driver=owon-xdm        --view=dmm-toolbar     --port=/dev/ttyUSB0
+./psu_app --driver=owon-xdm        --view=dmm-full        --port=/dev/ttyUSB0
 
 # Non-GUI driver smoke check
 ./psu_probe modbus-bridge /dev/ttyUSB0

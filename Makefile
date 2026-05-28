@@ -47,18 +47,24 @@ TRANSPORT_SRCS := \
 DRIVER_SRCS := \
     src/drivers/registry.c \
     src/drivers/demo.c \
+    src/drivers/dmm_demo.c \
+    src/drivers/dmm_helpers.c \
     src/drivers/modbus_bridge/modbus_bridge.c \
     src/drivers/modbus_bridge/psu_protocol.c \
     src/drivers/scpi_psu/scpi_psu.c \
-    src/drivers/korad/korad.c
+    src/drivers/korad/korad.c \
+    src/drivers/owon_xdm/owon_xdm.c
 
 VIEW_SRCS := \
     src/views/registry.c \
+    src/views/vfd_dotmatrix.c \
     src/views/toolbar_single.c \
     src/views/toolbar_dual.c \
     src/views/full_common.c \
     src/views/full_dual.c \
-    src/views/full_single.c
+    src/views/full_single.c \
+    src/views/dmm_toolbar.c \
+    src/views/dmm_full.c
 
 # ----- Binaries -----------------------------------------------------------
 

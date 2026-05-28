@@ -9,7 +9,8 @@ fork/execs `psu_app` per window).
 
 ```text
 include/
-  psu_driver.h                    Public driver interface — every view talks only to this.
+  psu_driver.h                    Public PSU driver interface — PSU views talk only to this.
+  dmm_driver.h                    Public DMM driver interface — DMM views talk only to this.
 
 src/
   app/
@@ -18,18 +19,23 @@ src/
     psu_probe.c                   Non-SDL CLI for sanity-checking drivers without launching the GUI.
 
   drivers/
-    registry.{c,h}                List of compiled-in driver factories — one line per driver.
+    registry.{c,h}                List of compiled-in driver factories (both PSU + DMM) —
+                                  exports psu_drivers_list/find and dmm_drivers_list/find.
     demo.{c,h}                    Synthetic 2-channel PSU (no hardware required).
+    dmm_demo.{c,h}                Synthetic 6½-digit DMM.
+    dmm_helpers.c                 Tiny shared helpers — mode label / unit lookup.
     modbus_bridge/                ESP32 Modbus-text-bridge driver (Riden RD60xx etc.).
       modbus_bridge.{c,h}
       psu_protocol.{c,h}          Wire protocol used only by this driver.
-    scpi_psu/                     One driver, many profiles. Currently shipped:
+    scpi_psu/                     One PSU driver, many profiles. Currently shipped:
       scpi_psu.{c,h}                Siglent SPD3303; Keysight E3631A/3A/4A/5A;
                                     Rigol DP832/832A/811/711; R&S HMP4040/4030/2030/NGE103B;
                                     Keithley 2230G/2231A; classic HP 6632A/6633A/6634A.
                                   Works over either USB-serial or Prologix GPIB transport.
-    korad/                        Korad KA-protocol driver — Korad / TENMA / Velleman / Hanmatek / clones.
+    korad/                        Korad KA-protocol PSU driver — Korad / TENMA / Velleman / Hanmatek / clones.
       korad.{c,h}
+    owon_xdm/                     OWON XDM-series DMM driver — SCPI over USB serial.
+      owon_xdm.{c,h}              Supports XDM1041/1241/2041 (+XDM3000 if SCPI-compatible).
 
   transport/                      Wire layers shared by drivers.
     serial_port.{c,h}             POSIX serial helper.
@@ -38,14 +44,19 @@ src/
     scpi_prologix.c               SCPI transport: Prologix GPIB-USB-HPIB controller.
 
   views/
-    views.h                       view_def_t + entry-point declarations.
-    registry.c                    List of compiled-in views.
-    toolbar_single.c              Compact 1-channel strip (ported).
-    toolbar_dual.c                Compact 2-channel strip (ported).
-    (full_single / full_dual — pending Phase 3c/d/e)
+    views.h                       view_def_t + dmm_view_def_t + entry-point declarations.
+    registry.c                    Lists of compiled-in PSU views and DMM views.
+    toolbar_single.c              PSU compact 1-channel strip.
+    toolbar_dual.c                PSU compact 2-channel strip.
+    full_common.{c,h}             Shared PSU toolkit (VFD readouts, bar/temp/scope, keypad, …).
+    full_single.c                 PSU full GUI — single channel.
+    full_dual.c                   PSU full GUI — dual channel.
+    dmm_toolbar.c                 DMM compact strip readout.
+    dmm_full.c                    DMM full GUI — mode/range/rate buttons + statistics + trace.
 
-legacy/                           The original four standalone GUIs, kept building during the
-                                  refactor. Each is self-contained. Deleted once all views are ported.
+legacy/                           The original four standalone PSU GUIs, kept building during the
+                                  refactor as a side-by-side reference. Removed once the new
+                                  full views are validated on hardware.
 
 screenshots/  Makefile  README.md  LICENSE  .gitignore
 ```
