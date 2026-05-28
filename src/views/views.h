@@ -31,5 +31,7 @@ const view_def_t *views_find(const char *id);
 /* Individual view entry points (declared here so the registry can wire them). */
 int view_toolbar_single_run(psu_driver_t *drv);
 int view_toolbar_dual_run  (psu_driver_t *drv);
+int view_full_single_run   (psu_driver_t *drv);
+int view_full_dual_run     (psu_driver_t *drv);
 
 #endif

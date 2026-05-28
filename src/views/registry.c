@@ -20,16 +20,16 @@ static const view_def_t k_views[] = {
     {
         .id           = "full-single",
         .display_name = "Full GUI — single channel",
-        .description  = "VFD readouts, bar meters, scope, keypad. Not yet ported.",
+        .description  = "VFD readouts, bar meters, temperature, scope, collapsible keypad.",
         .min_channels = 1,
-        .run          = NULL,
+        .run          = view_full_single_run,
     },
     {
         .id           = "full-dual",
         .display_name = "Full GUI — dual channel",
-        .description  = "Dual VFD/bars/scope + tracking. Not yet ported.",
+        .description  = "Dual VFD/bars/scope, shared keypad, TRACKING (driver permitting).",
         .min_channels = 2,
-        .run          = NULL,
+        .run          = view_full_dual_run,
     },
 };
 
