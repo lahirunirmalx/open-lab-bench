@@ -116,6 +116,21 @@ typedef struct {
     hitbox_t hits[MAX_HITS];
     int      num_hits;
 
+    /* Scroll state: rect = on-screen viewport, content_h = full content height,
+     * scroll_y = current offset. Updated each frame by the draw functions and
+     * read by the mouse-wheel handler. */
+    SDL_Rect driver_panel_rect;
+    int      driver_content_h;
+    int      driver_scroll_y;
+
+    SDL_Rect view_panel_rect;
+    int      view_content_h;
+    int      view_scroll_y;
+
+    /* When set (w > 0), add_hit() intersects every new hitbox with this
+     * rect so rows scrolled out of the panel don't catch clicks. */
+    SDL_Rect hit_clip;
+
     /* Cached registries (lifetime = program). */
     const psu_driver_factory_t *const *psu_drv;   size_t n_psu_drv;
     const dmm_driver_factory_t *const *dmm_drv;   size_t n_dmm_drv;
@@ -155,6 +170,16 @@ static int draw_text(SDL_Renderer *r, TTF_Font *font, const char *text,
 
 static int add_hit(launcher_t *L, int x, int y, int w, int h, int id, bool enabled) {
     if (L->num_hits >= MAX_HITS) return -1;
+    if (L->hit_clip.w > 0) {
+        /* Intersect the proposed hit rect with the current clip rect; drop
+         * it entirely if there's no overlap. */
+        int x1 = (x > L->hit_clip.x) ? x : L->hit_clip.x;
+        int y1 = (y > L->hit_clip.y) ? y : L->hit_clip.y;
+        int x2 = (x + w < L->hit_clip.x + L->hit_clip.w) ? x + w : L->hit_clip.x + L->hit_clip.w;
+        int y2 = (y + h < L->hit_clip.y + L->hit_clip.h) ? y + h : L->hit_clip.y + L->hit_clip.h;
+        if (x2 <= x1 || y2 <= y1) return -1;
+        x = x1; y = y1; w = x2 - x1; h = y2 - y1;
+    }
     L->hits[L->num_hits] = (hitbox_t){ .rect = {x, y, w, h}, .id = id, .enabled = enabled };
     return L->num_hits++;
 }
@@ -183,6 +208,35 @@ static void draw_radio(SDL_Renderer *r, int cx, int cy, bool selected, bool enab
             for (int dx = -2; dx <= 2; dx++)
                 if (dx*dx + dy*dy <= 4) SDL_RenderDrawPoint(r, cx + dx, cy + dy);
     }
+}
+
+/* Vertical scrollbar drawn at the right edge of `panel`. content_h is the
+ * full content height in pixels; scroll_y is the current offset. No-op when
+ * content fits. */
+static void draw_scrollbar(launcher_t *L, SDL_Rect panel, int content_h, int scroll_y) {
+    if (content_h <= panel.h) return;
+    int bar_x = panel.x + panel.w - 6;
+    int bar_w = 4;
+    set_color(L->r, (Color){50, 50, 55, 255});
+    fill_rect(L->r, bar_x, panel.y, bar_w, panel.h);
+
+    int thumb_h = (int)((float)panel.h * (float)panel.h / (float)content_h);
+    if (thumb_h < 24) thumb_h = 24;
+    int track_room = panel.h - thumb_h;
+    int max_scroll = content_h - panel.h;
+    int thumb_y = panel.y + (max_scroll > 0
+                             ? (int)((float)track_room * (float)scroll_y / (float)max_scroll)
+                             : 0);
+    set_color(L->r, COL_DIM);
+    fill_rect(L->r, bar_x, thumb_y, bar_w, thumb_h);
+}
+
+static int clamp_scroll(int v, int content_h, int panel_h) {
+    int max_s = content_h - panel_h;
+    if (max_s < 0) max_s = 0;
+    if (v < 0)      v = 0;
+    if (v > max_s)  v = max_s;
+    return v;
 }
 
 static void draw_button(launcher_t *L, int x, int y, int w, int h,
@@ -253,8 +307,17 @@ static void draw_driver_list(launcher_t *L) {
     set_color(L->r, COL_BORDER);
     draw_rect(L->r, x, panel_y, w, panel_h);
 
+    L->driver_panel_rect = (SDL_Rect){ x, panel_y, w, panel_h };
+
+    /* Clip drawing AND hit-tests to the panel interior so scrolled-out rows
+     * neither draw nor catch stray clicks. */
+    SDL_Rect clip = { x + 1, panel_y + 1, w - 2, panel_h - 2 };
+    SDL_RenderSetClipRect(L->r, &clip);
+    L->hit_clip = clip;
+
     int rx = x;
-    int ry = panel_y + 4;
+    int content_start = panel_y + 4 - L->driver_scroll_y;
+    int ry = content_start;
 
     /* PSU section. */
     ry += draw_section_label(L, rx, ry, w, "PSU");
@@ -272,6 +335,12 @@ static void draw_driver_list(launcher_t *L) {
         ry += draw_drv_row(L, rx, ry, w, L->dmm_drv[i]->display_name,
                            sel, true, BTN_DMM_DRIVER_BASE + (int)i);
     }
+
+    L->driver_content_h = ry - content_start;
+
+    SDL_RenderSetClipRect(L->r, NULL);
+    L->hit_clip = (SDL_Rect){0, 0, 0, 0};
+    draw_scrollbar(L, L->driver_panel_rect, L->driver_content_h, L->driver_scroll_y);
 }
 
 static void draw_port_field(launcher_t *L) {
@@ -324,14 +393,20 @@ static void draw_view_list(launcher_t *L) {
     set_color(L->r, COL_BORDER);
     draw_rect(L->r, x, panel_y, w, panel_h);
 
+    L->view_panel_rect = (SDL_Rect){ x, panel_y, w, panel_h };
+
+    SDL_Rect clip = { x + 1, panel_y + 1, w - 2, panel_h - 2 };
+    SDL_RenderSetClipRect(L->r, &clip);
+    L->hit_clip = clip;
+
     bool psu_active = (L->sel_kind == KIND_PSU);
     bool dmm_active = (L->sel_kind == KIND_DMM);
 
-    /* For PSU view greying we still need the selected PSU driver's channel hint. */
     int driver_ch = (L->sel_psu_drv >= 0)
                     ? L->psu_drv[L->sel_psu_drv]->n_channels_hint : 2;
 
-    int ry = panel_y + 4;
+    int content_start = panel_y + 4 - L->view_scroll_y;
+    int ry = content_start;
 
     /* PSU views. */
     ry += draw_section_label(L, x, ry, w, "PSU");
@@ -359,6 +434,12 @@ static void draw_view_list(launcher_t *L) {
         ry += draw_view_row(L, x, ry, w, v->display_name, "",
                             sel, ok, BTN_DMM_VIEW_BASE + (int)i);
     }
+
+    L->view_content_h = ry - content_start;
+
+    SDL_RenderSetClipRect(L->r, NULL);
+    L->hit_clip = (SDL_Rect){0, 0, 0, 0};
+    draw_scrollbar(L, L->view_panel_rect, L->view_content_h, L->view_scroll_y);
 }
 
 /* Used by the footer to figure out if LAUNCH should be enabled. */
@@ -522,6 +603,24 @@ static void handle_key(launcher_t *L, SDL_Keycode k) {
     if (k == SDLK_BACKSPACE && n > 0) L->port[n - 1] = '\0';
 }
 
+static bool point_in_sdl_rect(int x, int y, const SDL_Rect *r) {
+    return x >= r->x && x < r->x + r->w && y >= r->y && y < r->y + r->h;
+}
+
+static void handle_wheel(launcher_t *L, int wheel_y, int mx, int my) {
+    /* Each notch = 32 px of scroll. Negative wheel_y = wheel down = scroll down. */
+    int step = -wheel_y * 32;
+    if (point_in_sdl_rect(mx, my, &L->driver_panel_rect)) {
+        L->driver_scroll_y = clamp_scroll(L->driver_scroll_y + step,
+                                          L->driver_content_h,
+                                          L->driver_panel_rect.h);
+    } else if (point_in_sdl_rect(mx, my, &L->view_panel_rect)) {
+        L->view_scroll_y = clamp_scroll(L->view_scroll_y + step,
+                                        L->view_content_h,
+                                        L->view_panel_rect.h);
+    }
+}
+
 static void handle_text(launcher_t *L, const char *t) {
     if (!L->port_focused) return;
     size_t n = strlen(L->port);
@@ -615,6 +714,12 @@ int launcher_run(const char *self_exe_path) {
                     break;
                 case SDL_KEYDOWN: handle_key(&L, ev.key.keysym.sym); break;
                 case SDL_TEXTINPUT: handle_text(&L, ev.text.text); break;
+                case SDL_MOUSEWHEEL: {
+                    int mx = 0, my = 0;
+                    SDL_GetMouseState(&mx, &my);
+                    handle_wheel(&L, ev.wheel.y, mx, my);
+                    break;
+                }
             }
         }
         render(&L);
