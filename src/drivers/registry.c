@@ -5,6 +5,7 @@
 #include "korad/korad.h"
 #include "modbus_bridge/modbus_bridge.h"
 #include "owon_xdm/owon_xdm.h"
+#include "scpi_dmm/scpi_dmm.h"
 #include "scpi_psu/scpi_psu.h"
 
 #include <string.h>
@@ -65,7 +66,24 @@ const psu_driver_factory_t *psu_drivers_find(const char *id) {
 /* ---- DMM registry ---- */
 
 static const dmm_driver_factory_t *const k_dmm_drivers[] = {
+    /* OWON XDM family — direct USB-serial only. */
     &owon_xdm_factory,
+
+    /* SCPI DMMs — Keysight / Agilent / HP family. Reachable over either
+     * USB-serial or a Prologix GPIB-USB-HPIB adapter (--port=prologix:...). */
+    &keysight_34401a_factory,
+    &keysight_34461a_factory,
+    &keysight_34465a_factory,
+    &keysight_34470a_factory,
+
+    /* SCPI DMMs — Fluke 884x (defaults to 34401A-compatible SCPI). */
+    &fluke_8845a_factory,
+    &fluke_8846a_factory,
+
+    /* SCPI DMMs — Keithley / Tektronix. */
+    &keithley_2000_factory,
+    &keithley_dmm6500_factory,
+
     &dmm_demo_factory,
 };
 

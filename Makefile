@@ -53,7 +53,8 @@ DRIVER_SRCS := \
     src/drivers/modbus_bridge/psu_protocol.c \
     src/drivers/scpi_psu/scpi_psu.c \
     src/drivers/korad/korad.c \
-    src/drivers/owon_xdm/owon_xdm.c
+    src/drivers/owon_xdm/owon_xdm.c \
+    src/drivers/scpi_dmm/scpi_dmm.c
 
 VIEW_SRCS := \
     src/views/registry.c \

@@ -36,6 +36,13 @@ src/
       korad.{c,h}
     owon_xdm/                     OWON XDM-series DMM driver — SCPI over USB serial.
       owon_xdm.{c,h}              Supports XDM1041/1241/2041 (+XDM3000 if SCPI-compatible).
+    scpi_dmm/                     One DMM driver, many SCPI profiles. Currently shipped:
+      scpi_dmm.{c,h}                Keysight/Agilent/HP 34401A; Keysight Truevolt
+                                    34461A / 34465A / 34470A; Fluke 8845A / 8846A
+                                    (34401A-compat); Keithley 2000 and DMM6500.
+                                  Same scpi.h transport as scpi_psu — every model
+                                  reaches the instrument over either USB-serial or
+                                  Prologix GPIB-USB-HPIB.
 
   transport/                      Wire layers shared by drivers.
     serial_port.{c,h}             POSIX serial helper.

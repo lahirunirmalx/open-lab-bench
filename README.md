@@ -9,8 +9,12 @@ of drivers across two instrument classes:
   DP800 family, Rohde & Schwarz HMP / NGE, Keithley 2230G / 2231A),
   Korad-protocol bench supplies (Korad / TENMA / Velleman / Hanmatek and
   clones), plus a synthetic demo driver.
-- **DMMs** — OWON XDM-series (XDM1041 / XDM1241 / XDM2041, +XDM3000 if SCPI-compatible)
-  over USB-serial, plus a synthetic demo DMM.
+- **DMMs** — OWON XDM-series over USB-serial, classic & Truevolt Keysight/
+  Agilent/HP (34401A, 34461A, 34465A, 34470A), Fluke 884x in 34401A-compat
+  SCPI mode, Keithley 2000 & DMM6500. The Keysight/Fluke/Keithley drivers
+  all reach the instrument via either USB-serial **or** a Prologix
+  GPIB-USB-HPIB adapter (`--port=prologix:/dev/ttyUSB0:<gpib-addr>`).
+  Plus a synthetic demo DMM.
 
 The launcher knows the instrument kind: selecting a PSU driver enables the
 PSU views (toolbar-single, toolbar-dual, full-single, full-dual); selecting
@@ -99,10 +103,18 @@ greyed out for modes the driver doesn't expose.
 
 ### DMM drivers
 
-| `--driver=` | Hardware                                                                                 | Transport            |
-| ----------- | ---------------------------------------------------------------------------------------- | -------------------- |
-| `owon-xdm`  | OWON XDM-series bench DMM — XDM1041 / XDM1241 / XDM2041 (+ XDM3000 family if compatible) | SCPI over USB serial |
-| `dmm-demo`  | Synthetic 6½-digit DMM — animated reading, no hardware                                   | none                 |
+| `--driver=`         | Hardware                                                                                 | Transport                                 |
+| ------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `owon-xdm`          | OWON XDM-series bench DMM — XDM1041 / XDM1241 / XDM2041 (+ XDM3000 family if compatible) | SCPI over USB serial                      |
+| `keysight-34401a`   | Classic Keysight/Agilent/HP 34401A — 6½-digit                                            | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-34461a`   | Keysight Truevolt 34461A — 6½-digit entry                                                | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-34465a`   | Keysight Truevolt 34465A — 6½-digit mid                                                  | SCPI over USB-serial **or** Prologix GPIB |
+| `keysight-34470a`   | Keysight Truevolt 34470A — 7½-digit                                                      | SCPI over USB-serial **or** Prologix GPIB |
+| `fluke-8845a`       | Fluke 8845A — 6½-digit (default 34401A-compat SCPI mode)                                 | SCPI over USB-serial **or** Prologix GPIB |
+| `fluke-8846a`       | Fluke 8846A — 6½-digit with 4-wire ohms                                                  | SCPI over USB-serial **or** Prologix GPIB |
+| `keithley-2000`     | Keithley 2000 — legacy 6½-digit; typically GPIB                                          | SCPI over USB-serial **or** Prologix GPIB |
+| `keithley-dmm6500`  | Keithley DMM6500 Touch — auto-switches to SCPI mode on open                              | SCPI over USB-serial **or** Prologix GPIB |
+| `dmm-demo`          | Synthetic 6½-digit DMM — animated reading, no hardware                                   | none                                      |
 
 Run `./psu_app --list` to see this list with descriptions and defaults.
 
