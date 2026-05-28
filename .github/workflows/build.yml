@@ -1,0 +1,107 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # -------- Linux build (Ubuntu LTS) --------
+  linux:
+    name: Linux (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SDL2 dev packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              build-essential pkg-config libsdl2-dev libsdl2-ttf-dev
+
+      - name: Show platform info
+        run: make platform
+
+      - name: Build
+        run: make -j$(nproc)
+
+      - name: Smoke test (--list)
+        run: ./psu_app --list
+
+      - name: Smoke test (launch view briefly under headless SDL)
+        env:
+          SDL_VIDEODRIVER: dummy
+        run: |
+          # Launch each view kind for 1s against the synthetic drivers — no
+          # display required, just verifies init/teardown paths.
+          timeout 1 ./psu_app --driver=demo     --view=toolbar-single --port=- || [ $? -eq 124 ]
+          timeout 1 ./psu_app --driver=demo     --view=full-dual      --port=- || [ $? -eq 124 ]
+          timeout 1 ./psu_app --driver=dmm-demo --view=dmm-full       --port=- || [ $? -eq 124 ]
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-lab-bench-linux-x86_64
+          path: |
+            psu_app
+            psu_probe
+            psu_gui
+            psu_gui_single
+            psu_gui_toolbar
+            psu_gui_toolbar_single
+
+  # -------- Windows build (MSYS2 / MINGW64) --------
+  windows:
+    name: Windows (MinGW-w64 / MSYS2)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-SDL2_ttf
+
+      - name: Show platform info
+        run: make platform
+
+      - name: Build
+        run: make -j$(nproc)
+
+      - name: Smoke test (--list)
+        run: ./psu_app.exe --list
+
+      - name: Collect SDL2 runtime DLLs
+        run: |
+          mkdir -p dist
+          cp psu_app.exe psu_probe.exe dist/
+          # SDL2 + SDL2_ttf + their transitive deps must travel with the .exe
+          # for it to run outside MSYS2's shell.
+          for dll in SDL2.dll SDL2_ttf.dll \
+                     libfreetype-6.dll libpng16-16.dll libbz2-1.dll zlib1.dll \
+                     libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll \
+                     libbrotlidec.dll libbrotlicommon.dll libharfbuzz-0.dll \
+                     libglib-2.0-0.dll libintl-8.dll libpcre2-8-0.dll \
+                     libgraphite2.dll libiconv-2.dll; do
+            if [ -f "/mingw64/bin/$dll" ]; then
+              cp "/mingw64/bin/$dll" dist/
+            fi
+          done
+          ls -la dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-lab-bench-windows-x86_64
+          path: dist/
