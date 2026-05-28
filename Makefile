@@ -57,10 +57,15 @@ endif
 NEW_INCLUDES := -Iinclude -Isrc -Isrc/transport
 
 CFLAGS  ?= -O2
-CFLAGS  += -Wall -Wextra -std=c99 -pthread $(SDL_CFLAGS)
+CFLAGS  += -Wall -Wextra -std=c99 -pthread
 ifeq ($(PLATFORM),posix)
 CFLAGS  += -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
 endif
+
+# SDL_CFLAGS is applied per-binary (see *_CPPFLAGS below) so it isn't
+# inherited by binaries that don't link SDL — on Windows it carries the
+# `-Dmain=SDL_main` macro that would otherwise rename psu_probe's main()
+# and leave the linker without a WinMain.
 
 LDFLAGS += -pthread
 LDLIBS  += $(SDL_LIBS) $(PLATFORM_LIBS) -lm
@@ -117,10 +122,12 @@ psu_app$(EXE_SUFFIX)_SRCS := \
 psu_probe$(EXE_SUFFIX)_SRCS := \
     src/app/psu_probe.c $(PLATFORM_SRC) $(TRANSPORT_SRCS) $(DRIVER_SRCS)
 
-# psu_probe doesn't link SDL/TTF.
-psu_probe$(EXE_SUFFIX)_LDLIBS  := -pthread $(PLATFORM_LIBS) -lm
+# psu_probe doesn't link SDL/TTF — keep SDL_CFLAGS off its compile line.
+psu_probe$(EXE_SUFFIX)_LDLIBS   := -pthread $(PLATFORM_LIBS) -lm
 psu_probe$(EXE_SUFFIX)_CPPFLAGS := $(NEW_INCLUDES)
-psu_app$(EXE_SUFFIX)_CPPFLAGS   := $(NEW_INCLUDES)
+
+# psu_app does need SDL; pulled in via CPPFLAGS (not the global CFLAGS).
+psu_app$(EXE_SUFFIX)_CPPFLAGS   := $(NEW_INCLUDES) $(SDL_CFLAGS)
 
 # Legacy four GUIs (POSIX only).
 LEGACY_INC := -Ilegacy
@@ -130,10 +137,10 @@ psu_gui_single_SRCS         := legacy/main_single.c         legacy/serial_port.c
 psu_gui_toolbar_SRCS        := legacy/main_toolbar.c        legacy/serial_port.c legacy/psu_protocol.c
 psu_gui_toolbar_single_SRCS := legacy/main_toolbar_single.c legacy/serial_port.c legacy/psu_protocol.c
 
-psu_gui_CPPFLAGS                := $(LEGACY_INC)
-psu_gui_single_CPPFLAGS         := $(LEGACY_INC)
-psu_gui_toolbar_CPPFLAGS        := $(LEGACY_INC)
-psu_gui_toolbar_single_CPPFLAGS := $(LEGACY_INC)
+psu_gui_CPPFLAGS                := $(LEGACY_INC) $(SDL_CFLAGS)
+psu_gui_single_CPPFLAGS         := $(LEGACY_INC) $(SDL_CFLAGS)
+psu_gui_toolbar_CPPFLAGS        := $(LEGACY_INC) $(SDL_CFLAGS)
+psu_gui_toolbar_single_CPPFLAGS := $(LEGACY_INC) $(SDL_CFLAGS)
 
 # ----- build rules --------------------------------------------------------
 

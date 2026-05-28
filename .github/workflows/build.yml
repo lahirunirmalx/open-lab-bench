@@ -15,11 +15,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SDL2 dev packages
+      - name: Install SDL2 dev packages + a monospace font
         run: |
           sudo apt-get update
+          # fonts-dejavu-core is the smallest pack that provides
+          # DejaVuSansMono.ttf, which open_fonts() probes for first.
           sudo apt-get install -y --no-install-recommends \
-              build-essential pkg-config libsdl2-dev libsdl2-ttf-dev
+              build-essential pkg-config libsdl2-dev libsdl2-ttf-dev \
+              fonts-dejavu-core
 
       - name: Show platform info
         run: make platform
