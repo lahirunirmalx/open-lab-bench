@@ -6,7 +6,8 @@
  * its own process and several can run side by side).
  *
  * With --driver and --view: run that combination directly (this is what the
- * launcher invokes in its children).
+ * launcher invokes in its children). The driver id selects between the PSU
+ * and DMM registries; the view id is looked up in the matching view list.
  *
  * Usage:
  *   psu_app                                          # launcher GUI
@@ -15,6 +16,7 @@
  */
 
 #include "drivers/registry.h"
+#include "dmm_driver.h"
 #include "launcher.h"
 #include "psu_driver.h"
 #include "views/views.h"
@@ -38,37 +40,105 @@ static void usage(FILE *out, const char *prog) {
 
 static void list_all(void) {
     size_t n;
-    const psu_driver_factory_t *const *drvs = psu_drivers_list(&n);
-    printf("Drivers (%zu):\n", n);
+
+    const psu_driver_factory_t *const *psu = psu_drivers_list(&n);
+    printf("PSU drivers (%zu):\n", n);
     for (size_t i = 0; i < n; i++) {
-        printf("  --driver=%-16s %s\n      %s\n",
-               drvs[i]->id, drvs[i]->display_name, drvs[i]->description);
+        printf("  --driver=%-18s %s\n      %s\n",
+               psu[i]->id, psu[i]->display_name, psu[i]->description);
     }
 
-    const view_def_t *const *vws = views_list(&n);
-    printf("\nViews (%zu):\n", n);
+    const dmm_driver_factory_t *const *dmm = dmm_drivers_list(&n);
+    printf("\nDMM drivers (%zu):\n", n);
     for (size_t i = 0; i < n; i++) {
-        const char *status = vws[i]->run ? "" : "  [not yet ported]";
+        printf("  --driver=%-18s %s\n      %s\n",
+               dmm[i]->id, dmm[i]->display_name, dmm[i]->description);
+    }
+
+    const view_def_t *const *psu_v = views_list(&n);
+    printf("\nPSU views (%zu):\n", n);
+    for (size_t i = 0; i < n; i++) {
+        const char *status = psu_v[i]->run ? "" : "  [not yet ported]";
         printf("  --view=%-18s %s (needs %d ch)%s\n      %s\n",
-               vws[i]->id, vws[i]->display_name,
-               vws[i]->min_channels, status, vws[i]->description);
+               psu_v[i]->id, psu_v[i]->display_name,
+               psu_v[i]->min_channels, status, psu_v[i]->description);
+    }
+
+    const dmm_view_def_t *const *dmm_v = dmm_views_list(&n);
+    printf("\nDMM views (%zu):\n", n);
+    for (size_t i = 0; i < n; i++) {
+        printf("  --view=%-18s %s\n      %s\n",
+               dmm_v[i]->id, dmm_v[i]->display_name, dmm_v[i]->description);
     }
 }
 
-/* If arg starts with "<prefix>", return the suffix; else NULL. */
 static const char *opt_value(const char *arg, const char *prefix) {
     size_t plen = strlen(prefix);
     if (strncmp(arg, prefix, plen) == 0) return arg + plen;
     return NULL;
 }
 
-/* Resolve our own executable path so the launcher can fork/exec us.
- * On Linux /proc/self/exe is canonical and survives PATH/cwd changes; fall
- * back to argv0 otherwise. */
 static void resolve_self_exe(const char *argv0, char *out, size_t out_sz) {
     ssize_t n = readlink("/proc/self/exe", out, out_sz - 1);
     if (n > 0) { out[n] = '\0'; return; }
     snprintf(out, out_sz, "%s", argv0 ? argv0 : "psu_app");
+}
+
+/* Run a PSU driver + view. */
+static int run_psu(const psu_driver_factory_t *fac,
+                   const char *driver_id, const char *view_id,
+                   const char *port, int baud) {
+    const view_def_t *view = views_find(view_id);
+    if (!view) {
+        fprintf(stderr, "PSU driver '%s' selected but view '%s' isn't a PSU view\n",
+                driver_id, view_id);
+        return 2;
+    }
+    if (!view->run) {
+        fprintf(stderr, "view '%s' is not yet ported\n", view_id);
+        return 2;
+    }
+    if (baud <= 0) baud = fac->default_baud;
+
+    psu_driver_t *drv = fac->open(port, baud);
+    if (!drv) {
+        fprintf(stderr, "failed to open PSU driver '%s' on %s @ %d baud\n",
+                driver_id, port ? port : "(none)", baud);
+        return 1;
+    }
+    if (drv->caps.n_channels < view->min_channels) {
+        fprintf(stderr,
+                "driver '%s' has %d channel(s) but view '%s' needs %d\n",
+                driver_id, drv->caps.n_channels, view_id, view->min_channels);
+        drv->close(drv);
+        return 2;
+    }
+    int rc = view->run(drv);
+    drv->close(drv);
+    return rc;
+}
+
+/* Run a DMM driver + view. */
+static int run_dmm(const dmm_driver_factory_t *fac,
+                   const char *driver_id, const char *view_id,
+                   const char *port, int baud) {
+    const dmm_view_def_t *view = dmm_views_find(view_id);
+    if (!view) {
+        fprintf(stderr, "DMM driver '%s' selected but view '%s' isn't a DMM view\n",
+                driver_id, view_id);
+        return 2;
+    }
+    if (baud <= 0) baud = fac->default_baud;
+
+    dmm_driver_t *drv = fac->open(port, baud);
+    if (!drv) {
+        fprintf(stderr, "failed to open DMM driver '%s' on %s @ %d baud\n",
+                driver_id, port ? port : "(none)", baud);
+        return 1;
+    }
+    int rc = view->run(drv);
+    drv->close(drv);
+    return rc;
 }
 
 int main(int argc, char **argv) {
@@ -109,39 +179,13 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    const psu_driver_factory_t *fac = psu_drivers_find(driver_id);
-    if (!fac) {
-        fprintf(stderr, "unknown driver: %s\n", driver_id);
-        return 2;
-    }
-    const view_def_t *view = views_find(view_id);
-    if (!view) {
-        fprintf(stderr, "unknown view: %s\n", view_id);
-        return 2;
-    }
-    if (!view->run) {
-        fprintf(stderr, "view '%s' is not yet ported\n", view_id);
-        return 2;
-    }
+    /* Driver id is globally unique across PSU + DMM registries; try both. */
+    const psu_driver_factory_t *psu_fac = psu_drivers_find(driver_id);
+    if (psu_fac) return run_psu(psu_fac, driver_id, view_id, port, baud);
 
-    if (baud <= 0) baud = fac->default_baud;
+    const dmm_driver_factory_t *dmm_fac = dmm_drivers_find(driver_id);
+    if (dmm_fac) return run_dmm(dmm_fac, driver_id, view_id, port, baud);
 
-    psu_driver_t *drv = fac->open(port, baud);
-    if (!drv) {
-        fprintf(stderr, "failed to open driver '%s' on %s @ %d baud\n",
-                driver_id, port ? port : "(none)", baud);
-        return 1;
-    }
-
-    if (drv->caps.n_channels < view->min_channels) {
-        fprintf(stderr,
-                "driver '%s' has %d channel(s) but view '%s' needs %d\n",
-                driver_id, drv->caps.n_channels, view_id, view->min_channels);
-        drv->close(drv);
-        return 2;
-    }
-
-    int rc = view->run(drv);
-    drv->close(drv);
-    return rc;
+    fprintf(stderr, "unknown driver: %s\n", driver_id);
+    return 2;
 }
